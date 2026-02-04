@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { ConfigProvider, theme, Input, Button } from "antd";
 import SecretPage from "./pages/SecretPage";
+import TestPage from "./pages/testPage";
+import AdminPage from "./pages/adminPage";
+import HomePage from "./pages/homePage";
 
 const codes: Record<string, string> = {
   "secret": "secret",
@@ -22,6 +25,7 @@ export default function App() {
       console.log("Correct code!", destination);
       setCurrentPage(destination)
     } else {
+      setCurrentPage("home")
       console.log("Bad code.")
     }
 
@@ -30,7 +34,9 @@ export default function App() {
 
   const renderPage = () => {
     if (currentPage === "secret") return <SecretPage />;
-    return null;
+    if (currentPage === "test") return <TestPage />;
+    if (currentPage === "admin") return <AdminPage />;
+    return <HomePage />;
   };
 
   return (
@@ -46,7 +52,9 @@ export default function App() {
         <Button type="primary" onClick={handleSubmit} style={{ marginLeft: 8 }}>
           Submit
         </Button>
-        {renderPage()}
+        <div style={{marginTop:40}}>
+          {renderPage()}
+        </div>
       </div>
     </ConfigProvider>
   );

@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { ConfigProvider, theme, Input, Button, Typography } from "antd";
 
-export default function SecretPage() {
+export default function AdminPage() {
     return (
         <Typography.Text>
-            You found the secret page! But this was just a *test*.
+            Wow.
         </Typography.Text>
     )
 }
