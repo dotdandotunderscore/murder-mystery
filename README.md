@@ -78,3 +78,9 @@ Your website is now live! Railway auto-deploys on every GitHub push.
 
 - [Bun Documentation](https://bun.com/docs)
 - [Railway Documentation](https://docs.railway.app)
+
+# Local development
+```
+bun dev
+docker start mystery-db
+```
