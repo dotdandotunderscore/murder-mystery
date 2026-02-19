@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { ConfigProvider, theme, Input, Button, Typography, Spin } from "antd";
 import { usePlayer } from "../context/PlayerContext";
 import LoginPage from "./pages/LoginPage";
 import AdminPage from "./pages/adminPage";
@@ -7,7 +6,6 @@ import HomePage from "./pages/homePage";
 
 interface ClueResult {
   id: number;
-  code_phrase: string;
   title: string;
   content: string;
   page_type: string;
@@ -23,21 +21,15 @@ export default function App() {
 
   if (loading) {
     return (
-      <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }}>
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
-          <Spin size="large" />
-        </div>
-      </ConfigProvider>
+      <div className="min-h-screen bg-ink flex items-center justify-center">
+        <p className="text-muted text-xs tracking-[0.35em] uppercase animate-pulse">
+          Loading…
+        </p>
+      </div>
     );
   }
 
-  if (!player) {
-    return (
-      <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }}>
-        <LoginPage />
-      </ConfigProvider>
-    );
-  }
+  if (!player) return <LoginPage />;
 
   const handleSubmit = async () => {
     if (!codeInput.trim()) return;
@@ -72,79 +64,103 @@ export default function App() {
 
   const renderPage = () => {
     if (currentPage === "admin" && player.is_admin) return <AdminPage />;
+
     if (currentPage === "clue" && clue) {
       return (
-        <div style={{ textAlign: "left" }}>
-          <Typography.Title level={2}>{clue.title}</Typography.Title>
-          <Typography.Paragraph style={{ whiteSpace: "pre-wrap", fontSize: 16 }}>
-            {clue.content}
-          </Typography.Paragraph>
-          <Button onClick={handleBack}>Back</Button>
+        <div className="animate-fade-in">
+          <div className="border border-gold/25 bg-surface p-8 mb-6">
+            <p className="text-gold text-xs tracking-[0.45em] uppercase mb-4">
+              — Classified —
+            </p>
+            <h2 className="text-3xl text-cream mb-5">{clue.title}</h2>
+            <div className="h-px bg-gold/25 mb-6" />
+            <p className="text-cream leading-relaxed whitespace-pre-wrap text-lg">
+              {clue.content}
+            </p>
+          </div>
+          <button
+            onClick={handleBack}
+            className="text-muted text-xs tracking-widest uppercase hover:text-gold transition-colors"
+          >
+            ← Return
+          </button>
         </div>
       );
     }
+
     return <HomePage />;
   };
 
   return (
-    <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }}>
-      <div style={{ maxWidth: 700, margin: "0 auto", padding: "32px 20px" }}>
-        {/* Top bar */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 32,
-          }}
-        >
-          <Typography.Text type="secondary">
-            Logged in as <strong>{player.name}</strong>
-            {player.team ? ` (${player.team})` : ""}
-          </Typography.Text>
-          <div style={{ display: "flex", gap: 8 }}>
+    <div className="min-h-screen bg-ink">
+      {/* Header */}
+      <header className="border-b border-gold/20 px-6 py-4">
+        <div className="max-w-2xl mx-auto flex items-center justify-between">
+          <span className="text-muted text-xs tracking-widest uppercase">
+            {player.name}
+            {player.team ? (
+              <span className="text-muted/60"> · {player.team}</span>
+            ) : null}
+          </span>
+          <div className="flex items-center gap-6">
             {player.is_admin && (
-              <Button
-                size="small"
-                onClick={() => setCurrentPage(currentPage === "admin" ? null : "admin")}
+              <button
+                onClick={() =>
+                  setCurrentPage(currentPage === "admin" ? null : "admin")
+                }
+                className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
               >
-                {currentPage === "admin" ? "Home" : "Admin"}
-              </Button>
+                {currentPage === "admin" ? "← Home" : "Admin"}
+              </button>
             )}
-            <Button size="small" onClick={logout}>
-              Logout
-            </Button>
+            <button
+              onClick={logout}
+              className="text-muted text-xs tracking-widest uppercase hover:text-cream transition-colors"
+            >
+              Leave
+            </button>
           </div>
         </div>
+      </header>
 
-        {/* Code entry — hidden while in admin or viewing a clue */}
+      {/* Main */}
+      <main className="max-w-2xl mx-auto px-6 py-10">
+        {/* Code entry — only on home */}
         {currentPage !== "admin" && currentPage !== "clue" && (
-          <div style={{ textAlign: "center", marginBottom: 40 }}>
-            <Input
-              placeholder="Enter code"
-              value={codeInput}
-              onChange={(e) => setCodeInput(e.target.value)}
-              onPressEnter={handleSubmit}
-              style={{ width: 300 }}
-            />
-            <Button
-              type="primary"
-              onClick={handleSubmit}
-              loading={submitting}
-              style={{ marginLeft: 8 }}
-            >
-              Submit
-            </Button>
+          <div className="text-center mb-12">
+            <div className="flex items-center gap-4 mb-8">
+              <div className="flex-1 h-px bg-gold/20" />
+              <div className="w-1.5 h-1.5 bg-gold rotate-45 shrink-0" />
+              <div className="flex-1 h-px bg-gold/20" />
+            </div>
+            <div className="flex max-w-xs mx-auto">
+              <input
+                className="flex-1 bg-surface border border-gold/30 text-cream px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors min-w-0"
+                placeholder="Enter code…"
+                value={codeInput}
+                onChange={(e) => setCodeInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+              <button
+                onClick={handleSubmit}
+                disabled={submitting}
+                className="bg-gold text-ink px-5 py-3 text-xs tracking-widest uppercase font-semibold hover:bg-gold-light transition-colors disabled:opacity-50 shrink-0"
+                style={{ fontFamily: "var(--font-family-display)" }}
+              >
+                {submitting ? "…" : "Submit"}
+              </button>
+            </div>
             {error && (
-              <Typography.Text type="danger" style={{ display: "block", marginTop: 8 }}>
-                {error}
-              </Typography.Text>
+              <p className="text-danger text-sm mt-3">{error}</p>
             )}
           </div>
         )}
 
         {renderPage()}
-      </div>
-    </ConfigProvider>
+      </main>
+    </div>
   );
 }

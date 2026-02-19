@@ -1,20 +1,7 @@
 import React, { useState, useEffect } from "react";
-import {
-  Tabs,
-  Table,
-  Button,
-  Modal,
-  Form,
-  Input,
-  Switch,
-  Tag,
-  Space,
-  Typography,
-  Popconfirm,
-  Select,
-  InputNumber,
-  message,
-} from "antd";
+import { toast } from "sonner";
+
+// ── Types ──────────────────────────────────────────────────────────────────────
 
 interface Player {
   id: number;
@@ -35,7 +22,6 @@ interface Clue {
   required_flags: string[] | null;
   grants_flags: string[] | null;
   sort_order: number;
-  created_at: string;
 }
 
 interface Progress {
@@ -43,14 +29,115 @@ interface Progress {
   flags: string[];
 }
 
-// ── Players panel ──────────────────────────────────────────────────────────────
+// ── Shared UI ──────────────────────────────────────────────────────────────────
+
+function Modal({
+  open,
+  onClose,
+  title,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+      return () => { document.body.style.overflow = ""; };
+    }
+  }, [open]);
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50">
+      <div
+        className="fixed inset-0 bg-ink/80 animate-fade-in-fast"
+        onClick={onClose}
+      />
+      <div className="fixed inset-0 overflow-y-auto">
+        <div className="flex min-h-full items-start justify-center py-8 px-4">
+      <div className="relative bg-surface-3 border border-gold/30 w-full sm:max-w-lg z-10 animate-fade-in">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gold/20">
+          <h3 className="text-xl text-cream">{title}</h3>
+          <button
+            onClick={onClose}
+            className="text-muted hover:text-cream transition-colors text-2xl leading-none pb-0.5"
+          >
+            ×
+          </button>
+        </div>
+        <div className="px-6 py-5">{children}</div>
+      </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Toggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={`relative w-11 h-6 transition-colors shrink-0 ${
+        checked ? "bg-gold" : "bg-surface-2 border border-gold/30"
+      }`}
+    >
+      <span
+        className={`absolute top-1 w-4 h-4 bg-cream transition-transform ${
+          checked ? "translate-x-6" : "translate-x-1"
+        }`}
+      />
+    </button>
+  );
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mb-5">
+      <label className="block text-gold text-xs tracking-widest uppercase mb-2">
+        {label}
+      </label>
+      {children}
+      {hint && <p className="text-muted text-xs mt-1.5">{hint}</p>}
+    </div>
+  );
+}
+
+const inputCls =
+  "w-full bg-ink border border-gold/30 text-cream px-4 py-2.5 text-sm focus:outline-none focus:border-gold transition-colors";
+
+const saveBtnCls =
+  "w-full bg-gold text-ink py-3 text-xs tracking-widest uppercase font-semibold hover:bg-gold-light transition-colors disabled:opacity-50 mt-1";
+
+// ── Players Panel ──────────────────────────────────────────────────────────────
+
+const defaultPlayerForm = { name: "", pin: "", team: "", is_admin: false };
 
 function PlayersPanel() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Player | null>(null);
-  const [form] = Form.useForm();
+  const [form, setForm] = useState(defaultPlayerForm);
+  const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -59,28 +146,30 @@ function PlayersPanel() {
     setLoading(false);
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   const openCreate = () => {
     setEditing(null);
-    form.resetFields();
+    setForm(defaultPlayerForm);
     setModalOpen(true);
   };
 
-  const openEdit = (player: Player) => {
-    setEditing(player);
-    form.setFieldsValue({ name: player.name, pin: "", team: player.team ?? "", is_admin: player.is_admin });
+  const openEdit = (p: Player) => {
+    setEditing(p);
+    setForm({ name: p.name, pin: "", team: p.team ?? "", is_admin: p.is_admin });
     setModalOpen(true);
   };
 
-  const handleSave = async (values: { name: string; pin?: string; team?: string; is_admin?: boolean }) => {
+  const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
     const body = {
-      name: values.name,
-      pin: values.pin ?? "",
-      team: values.team?.trim() || null,
-      is_admin: values.is_admin ?? false,
+      name: form.name.trim(),
+      pin: form.pin.trim(),
+      team: form.team.trim() || null,
+      is_admin: form.is_admin,
     };
     const res = editing
       ? await fetch(`/api/admin/players/${editing.id}`, {
@@ -96,105 +185,202 @@ function PlayersPanel() {
     if (res.ok) {
       setModalOpen(false);
       load();
+      toast.success(editing ? "Player updated" : "Player created");
     } else {
       const data = await res.json();
-      message.error(data.error ?? "Failed to save");
+      toast.error(data.error ?? "Failed to save");
     }
+    setSaving(false);
   };
 
   const handleDelete = async (id: number) => {
     const res = await fetch(`/api/admin/players/${id}`, { method: "DELETE" });
-    if (res.ok) load();
-    else message.error("Failed to delete");
+    if (res.ok) {
+      load();
+      toast.success("Player deleted");
+    } else {
+      toast.error("Failed to delete");
+    }
+    setConfirmDelete(null);
   };
-
-  const columns = [
-    { title: "Name", dataIndex: "name", key: "name" },
-    {
-      title: "Team",
-      dataIndex: "team",
-      key: "team",
-      render: (t: string | null) =>
-        t ? <Tag>{t}</Tag> : <Typography.Text type="secondary">—</Typography.Text>,
-    },
-    {
-      title: "Admin",
-      dataIndex: "is_admin",
-      key: "is_admin",
-      render: (v: boolean) => (v ? <Tag color="gold">Admin</Tag> : null),
-    },
-    {
-      title: "",
-      key: "actions",
-      render: (_: unknown, record: Player) => (
-        <Space>
-          <Button size="small" onClick={() => openEdit(record)}>
-            Edit
-          </Button>
-          <Popconfirm title="Delete this player?" onConfirm={() => handleDelete(record.id)}>
-            <Button size="small" danger>
-              Delete
-            </Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
 
   return (
     <>
-      <div style={{ marginBottom: 16 }}>
-        <Button type="primary" onClick={openCreate}>
+      <div className="flex items-center justify-between mb-5">
+        <span className="text-muted text-xs tracking-widest uppercase">
+          {players.length} player{players.length !== 1 ? "s" : ""}
+        </span>
+        <button
+          onClick={openCreate}
+          className="bg-gold text-ink px-4 py-2 text-xs tracking-widest uppercase font-semibold hover:bg-gold-light transition-colors"
+          style={{ fontFamily: "var(--font-family-display)" }}
+        >
           Add Player
-        </Button>
+        </button>
       </div>
-      <Table dataSource={players} columns={columns} rowKey="id" loading={loading} size="small" />
+
+      {loading ? (
+        <p className="text-muted text-sm text-center py-10">Loading…</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gold/20">
+                {["Name", "Team", "Role", ""].map((h) => (
+                  <th
+                    key={h}
+                    className="text-left text-gold text-xs tracking-widest uppercase font-normal py-3 pr-4"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {players.map((p) => (
+                <tr key={p.id} className="border-b border-gold/10">
+                  <td className="py-3 pr-4 text-cream">{p.name}</td>
+                  <td className="py-3 pr-4 text-muted">{p.team ?? "—"}</td>
+                  <td className="py-3 pr-4">
+                    {p.is_admin && (
+                      <span className="text-gold text-xs tracking-widest">
+                        Admin
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 text-right whitespace-nowrap">
+                    {confirmDelete === p.id ? (
+                      <span className="inline-flex items-center gap-3">
+                        <span className="text-muted text-xs">Delete?</span>
+                        <button
+                          onClick={() => handleDelete(p.id)}
+                          className="text-danger text-xs hover:underline"
+                        >
+                          Yes
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(null)}
+                          className="text-muted text-xs hover:text-cream"
+                        >
+                          No
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-4">
+                        <button
+                          onClick={() => openEdit(p)}
+                          className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(p.id)}
+                          className="text-muted text-xs tracking-widest uppercase hover:text-danger transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {players.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="py-10 text-center text-muted text-sm"
+                  >
+                    No players yet
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <Modal
-        title={editing ? "Edit Player" : "Add Player"}
         open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        footer={null}
-        destroyOnClose
+        onClose={() => setModalOpen(false)}
+        title={editing ? "Edit Player" : "Add Player"}
       >
-        <Form form={form} onFinish={handleSave} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="name" label="Character Name" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item
-            name="pin"
+        <form onSubmit={handleSave}>
+          <Field label="Character Name">
+            <input
+              className={inputCls}
+              value={form.name}
+              onChange={(e) => set("name", e.target.value)}
+              required
+              autoCapitalize="words"
+            />
+          </Field>
+          <Field
             label="PIN"
-            rules={editing ? [] : [{ required: true }]}
-            extra={editing ? "Leave blank to keep current PIN" : undefined}
+            hint={editing ? "Leave blank to keep current PIN" : undefined}
           >
-            <Input placeholder={editing ? "(unchanged)" : "e.g. 7421"} />
-          </Form.Item>
-          <Form.Item name="team" label="Team" extra="Optional — e.g. red, blue">
-            <Input placeholder="Leave blank for no team" />
-          </Form.Item>
-          <Form.Item name="is_admin" label="Admin access" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Button type="primary" htmlType="submit" block>
-            Save
-          </Button>
-        </Form>
+            <input
+              className={inputCls}
+              value={form.pin}
+              onChange={(e) => set("pin", e.target.value)}
+              placeholder={editing ? "(unchanged)" : "e.g. 7421"}
+              required={!editing}
+            />
+          </Field>
+          <Field label="Team" hint="Optional — e.g. red, blue">
+            <input
+              className={inputCls}
+              value={form.team}
+              onChange={(e) => set("team", e.target.value)}
+              placeholder="Leave blank for no team"
+            />
+          </Field>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <p className="text-gold text-xs tracking-widest uppercase">
+                Admin Access
+              </p>
+              <p className="text-muted text-xs mt-1">Can access the admin panel</p>
+            </div>
+            <Toggle
+              checked={form.is_admin}
+              onChange={(v) => set("is_admin", v)}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={saving}
+            className={saveBtnCls}
+            style={{ fontFamily: "var(--font-family-display)" }}
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </form>
       </Modal>
     </>
   );
 }
 
-// ── Clues panel ────────────────────────────────────────────────────────────────
+// ── Clues Panel ────────────────────────────────────────────────────────────────
 
-function csvToArray(v: string | undefined | null): string[] | null {
-  if (!v?.trim()) return null;
-  return v
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+const defaultClueForm = {
+  code_phrase: "",
+  title: "",
+  content: "",
+  page_type: "text",
+  sort_order: 0,
+  visible_to_teams: "",
+  visible_to_players: "",
+  required_flags: "",
+  grants_flags: "",
+};
+
+function csvToArray(v: string): string[] | null {
+  const trimmed = v.trim();
+  if (!trimmed) return null;
+  return trimmed.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
-function arrayToCsv(arr: string[] | number[] | null | undefined): string {
+function arrayToCsv(arr: string[] | number[] | null): string {
   return arr?.join(", ") ?? "";
 }
 
@@ -203,7 +389,9 @@ function CluesPanel() {
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Clue | null>(null);
-  const [form] = Form.useForm();
+  const [form, setForm] = useState(defaultClueForm);
+  const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -212,53 +400,46 @@ function CluesPanel() {
     setLoading(false);
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   const openCreate = () => {
     setEditing(null);
-    form.resetFields();
+    setForm(defaultClueForm);
     setModalOpen(true);
   };
 
-  const openEdit = (clue: Clue) => {
-    setEditing(clue);
-    form.setFieldsValue({
-      code_phrase: clue.code_phrase,
-      title: clue.title,
-      content: clue.content,
-      page_type: clue.page_type,
-      sort_order: clue.sort_order,
-      visible_to_teams: arrayToCsv(clue.visible_to_teams),
-      visible_to_players: arrayToCsv(clue.visible_to_players),
-      required_flags: arrayToCsv(clue.required_flags),
-      grants_flags: arrayToCsv(clue.grants_flags),
+  const openEdit = (c: Clue) => {
+    setEditing(c);
+    setForm({
+      code_phrase: c.code_phrase,
+      title: c.title,
+      content: c.content,
+      page_type: c.page_type,
+      sort_order: c.sort_order,
+      visible_to_teams: arrayToCsv(c.visible_to_teams),
+      visible_to_players: arrayToCsv(c.visible_to_players),
+      required_flags: arrayToCsv(c.required_flags),
+      grants_flags: arrayToCsv(c.grants_flags),
     });
     setModalOpen(true);
   };
 
-  const handleSave = async (values: {
-    code_phrase: string;
-    title: string;
-    content?: string;
-    page_type?: string;
-    sort_order?: number;
-    visible_to_teams?: string;
-    visible_to_players?: string;
-    required_flags?: string;
-    grants_flags?: string;
-  }) => {
+  const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
     const body = {
-      code_phrase: values.code_phrase.trim().toLowerCase(),
-      title: values.title,
-      content: values.content ?? "",
-      page_type: values.page_type ?? "text",
-      sort_order: values.sort_order ?? 0,
-      visible_to_teams: csvToArray(values.visible_to_teams),
-      visible_to_players: csvToArray(values.visible_to_players)?.map(Number) ?? null,
-      required_flags: csvToArray(values.required_flags),
-      grants_flags: csvToArray(values.grants_flags),
+      code_phrase: form.code_phrase.trim().toLowerCase(),
+      title: form.title.trim(),
+      content: form.content,
+      page_type: form.page_type,
+      sort_order: form.sort_order,
+      visible_to_teams: csvToArray(form.visible_to_teams),
+      visible_to_players:
+        csvToArray(form.visible_to_players)?.map(Number) ?? null,
+      required_flags: csvToArray(form.required_flags),
+      grants_flags: csvToArray(form.grants_flags),
     };
     const res = editing
       ? await fetch(`/api/admin/clues/${editing.id}`, {
@@ -274,105 +455,234 @@ function CluesPanel() {
     if (res.ok) {
       setModalOpen(false);
       load();
+      toast.success(editing ? "Clue updated" : "Clue created");
     } else {
       const data = await res.json();
-      message.error(data.error ?? "Failed to save");
+      toast.error(data.error ?? "Failed to save");
     }
+    setSaving(false);
   };
 
   const handleDelete = async (id: number) => {
     const res = await fetch(`/api/admin/clues/${id}`, { method: "DELETE" });
-    if (res.ok) load();
-    else message.error("Failed to delete");
+    if (res.ok) {
+      load();
+      toast.success("Clue deleted");
+    } else {
+      toast.error("Failed to delete");
+    }
+    setConfirmDelete(null);
   };
-
-  const columns = [
-    {
-      title: "Code",
-      dataIndex: "code_phrase",
-      key: "code_phrase",
-      render: (v: string) => <code style={{ fontSize: 13 }}>{v}</code>,
-    },
-    { title: "Title", dataIndex: "title", key: "title" },
-    { title: "Type", dataIndex: "page_type", key: "page_type" },
-    { title: "Order", dataIndex: "sort_order", key: "sort_order", width: 70 },
-    {
-      title: "",
-      key: "actions",
-      render: (_: unknown, record: Clue) => (
-        <Space>
-          <Button size="small" onClick={() => openEdit(record)}>
-            Edit
-          </Button>
-          <Popconfirm title="Delete this clue?" onConfirm={() => handleDelete(record.id)}>
-            <Button size="small" danger>
-              Delete
-            </Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
 
   return (
     <>
-      <div style={{ marginBottom: 16 }}>
-        <Button type="primary" onClick={openCreate}>
+      <div className="flex items-center justify-between mb-5">
+        <span className="text-muted text-xs tracking-widest uppercase">
+          {clues.length} clue{clues.length !== 1 ? "s" : ""}
+        </span>
+        <button
+          onClick={openCreate}
+          className="bg-gold text-ink px-4 py-2 text-xs tracking-widest uppercase font-semibold hover:bg-gold-light transition-colors"
+          style={{ fontFamily: "var(--font-family-display)" }}
+        >
           Add Clue
-        </Button>
+        </button>
       </div>
-      <Table dataSource={clues} columns={columns} rowKey="id" loading={loading} size="small" />
+
+      {loading ? (
+        <p className="text-muted text-sm text-center py-10">Loading…</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gold/20">
+                <th className="text-left text-gold text-xs tracking-widest uppercase font-normal py-3 pr-4">
+                  Code
+                </th>
+                <th className="text-left text-gold text-xs tracking-widest uppercase font-normal py-3 pr-4">
+                  Title
+                </th>
+                <th className="text-left text-gold text-xs tracking-widest uppercase font-normal py-3 pr-4 hidden sm:table-cell">
+                  Type
+                </th>
+                <th className="py-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {clues.map((c) => (
+                <tr key={c.id} className="border-b border-gold/10">
+                  <td className="py-3 pr-4 font-mono text-xs text-gold">
+                    {c.code_phrase}
+                  </td>
+                  <td className="py-3 pr-4 text-cream">{c.title}</td>
+                  <td className="py-3 pr-4 text-muted hidden sm:table-cell">
+                    {c.page_type}
+                  </td>
+                  <td className="py-3 text-right whitespace-nowrap">
+                    {confirmDelete === c.id ? (
+                      <span className="inline-flex items-center gap-3">
+                        <span className="text-muted text-xs">Delete?</span>
+                        <button
+                          onClick={() => handleDelete(c.id)}
+                          className="text-danger text-xs hover:underline"
+                        >
+                          Yes
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(null)}
+                          className="text-muted text-xs hover:text-cream"
+                        >
+                          No
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-4">
+                        <button
+                          onClick={() => openEdit(c)}
+                          className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete(c.id)}
+                          className="text-muted text-xs tracking-widest uppercase hover:text-danger transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {clues.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="py-10 text-center text-muted text-sm"
+                  >
+                    No clues yet. Add one to get started.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <Modal
-        title={editing ? "Edit Clue" : "Add Clue"}
         open={modalOpen}
-        onCancel={() => setModalOpen(false)}
-        footer={null}
-        width={620}
-        destroyOnClose
+        onClose={() => setModalOpen(false)}
+        title={editing ? "Edit Clue" : "Add Clue"}
       >
-        <Form form={form} onFinish={handleSave} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="code_phrase" label="Code Phrase" rules={[{ required: true }]} extra="What players type in (auto-lowercased)">
-            <Input placeholder="e.g. butler-did-it" />
-          </Form.Item>
-          <Form.Item name="title" label="Title" rules={[{ required: true }]}>
-            <Input placeholder="Page heading shown to player" />
-          </Form.Item>
-          <Form.Item name="content" label="Content">
-            <Input.TextArea rows={5} placeholder="Clue text shown to player..." />
-          </Form.Item>
-          <Form.Item name="page_type" label="Page Type" initialValue="text">
-            <Select>
-              <Select.Option value="text">Text</Select.Option>
-              <Select.Option value="cipher">Cipher</Select.Option>
-              <Select.Option value="safecracker">Safecracker</Select.Option>
-            </Select>
-          </Form.Item>
-          <Form.Item name="sort_order" label="Sort Order" initialValue={0}>
-            <InputNumber style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item name="visible_to_teams" label="Visible to Teams" extra="Comma-separated team names, blank = all teams">
-            <Input placeholder="red, blue" />
-          </Form.Item>
-          <Form.Item name="visible_to_players" label="Visible to Player IDs" extra="Comma-separated IDs, blank = all players">
-            <Input placeholder="1, 3, 5" />
-          </Form.Item>
-          <Form.Item name="required_flags" label="Required Flags" extra="Player must have all these flags before unlocking">
-            <Input placeholder="found_body, decoded_cipher" />
-          </Form.Item>
-          <Form.Item name="grants_flags" label="Grants Flags" extra="Flags awarded when this clue is found">
-            <Input placeholder="found_key" />
-          </Form.Item>
-          <Button type="primary" htmlType="submit" block>
-            Save
-          </Button>
-        </Form>
+        <form onSubmit={handleSave}>
+          <Field label="Code Phrase" hint="What players type in — auto-lowercased">
+            <input
+              className={inputCls}
+              value={form.code_phrase}
+              onChange={(e) => set("code_phrase", e.target.value)}
+              placeholder="e.g. butler-did-it"
+              required
+              autoCapitalize="none"
+              autoCorrect="off"
+            />
+          </Field>
+          <Field label="Title">
+            <input
+              className={inputCls}
+              value={form.title}
+              onChange={(e) => set("title", e.target.value)}
+              placeholder="Heading shown to player"
+              required
+            />
+          </Field>
+          <Field label="Content">
+            <textarea
+              className={`${inputCls} resize-none`}
+              rows={5}
+              value={form.content}
+              onChange={(e) => set("content", e.target.value)}
+              placeholder="Clue text…"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Type">
+              <select
+                className={`${inputCls} cursor-pointer`}
+                value={form.page_type}
+                onChange={(e) => set("page_type", e.target.value)}
+              >
+                <option value="text">Text</option>
+                <option value="cipher">Cipher</option>
+                <option value="safecracker">Safecracker</option>
+              </select>
+            </Field>
+            <Field label="Order">
+              <input
+                className={inputCls}
+                type="number"
+                value={form.sort_order}
+                onChange={(e) =>
+                  set("sort_order", parseInt(e.target.value) || 0)
+                }
+              />
+            </Field>
+          </div>
+          <Field
+            label="Visible to Teams"
+            hint="Comma-separated, blank = all teams"
+          >
+            <input
+              className={inputCls}
+              value={form.visible_to_teams}
+              onChange={(e) => set("visible_to_teams", e.target.value)}
+              placeholder="red, blue"
+            />
+          </Field>
+          <Field
+            label="Visible to Player IDs"
+            hint="Comma-separated IDs, blank = all"
+          >
+            <input
+              className={inputCls}
+              value={form.visible_to_players}
+              onChange={(e) => set("visible_to_players", e.target.value)}
+              placeholder="1, 3, 5"
+            />
+          </Field>
+          <Field
+            label="Required Flags"
+            hint="Player must have all these flags first"
+          >
+            <input
+              className={inputCls}
+              value={form.required_flags}
+              onChange={(e) => set("required_flags", e.target.value)}
+              placeholder="found_body, decoded_cipher"
+            />
+          </Field>
+          <Field label="Grants Flags" hint="Flags awarded when unlocked">
+            <input
+              className={inputCls}
+              value={form.grants_flags}
+              onChange={(e) => set("grants_flags", e.target.value)}
+              placeholder="found_key"
+            />
+          </Field>
+          <button
+            type="submit"
+            disabled={saving}
+            className={saveBtnCls}
+            style={{ fontFamily: "var(--font-family-display)" }}
+          >
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </form>
       </Modal>
     </>
   );
 }
 
-// ── Progress panel ─────────────────────────────────────────────────────────────
+// ── Progress Panel ─────────────────────────────────────────────────────────────
 
 function ProgressPanel() {
   const [progress, setProgress] = useState<Progress[]>([]);
@@ -385,65 +695,111 @@ function ProgressPanel() {
     setLoading(false);
   };
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  const columns = [
-    { title: "Player", dataIndex: ["player", "name"], key: "name" },
-    {
-      title: "Team",
-      dataIndex: ["player", "team"],
-      key: "team",
-      render: (t: string | null) => t ?? "—",
-    },
-    {
-      title: "Flags",
-      key: "flags",
-      render: (_: unknown, record: Progress) =>
-        record.flags.length === 0 ? (
-          <Typography.Text type="secondary">none</Typography.Text>
-        ) : (
-          <Space wrap size={4}>
-            {record.flags.map((f) => (
-              <Tag key={f}>{f}</Tag>
-            ))}
-          </Space>
-        ),
-    },
-  ];
+  useEffect(() => { load(); }, []);
 
   return (
     <>
-      <div style={{ marginBottom: 16 }}>
-        <Button onClick={load}>Refresh</Button>
+      <div className="flex items-center justify-between mb-5">
+        <span className="text-muted text-xs tracking-widest uppercase">
+          {progress.length} player{progress.length !== 1 ? "s" : ""}
+        </span>
+        <button
+          onClick={load}
+          className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
+        >
+          Refresh
+        </button>
       </div>
-      <Table
-        dataSource={progress}
-        columns={columns}
-        rowKey={(r) => String(r.player.id)}
-        loading={loading}
-        size="small"
-      />
+
+      {loading ? (
+        <p className="text-muted text-sm text-center py-10">Loading…</p>
+      ) : (
+        <div className="space-y-3">
+          {progress.map(({ player, flags }) => (
+            <div
+              key={player.id}
+              className="border border-gold/20 bg-surface p-4"
+            >
+              <div className="flex items-start justify-between mb-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-cream font-medium">{player.name}</span>
+                  {player.team && (
+                    <span className="text-muted text-xs">({player.team})</span>
+                  )}
+                  {player.is_admin && (
+                    <span className="text-gold text-xs tracking-widest">
+                      Admin
+                    </span>
+                  )}
+                </div>
+                <span className="text-muted text-xs shrink-0 ml-2">
+                  {flags.length} flag{flags.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              {flags.length > 0 ? (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {flags.map((f) => (
+                    <span
+                      key={f}
+                      className="border border-gold/30 text-gold text-xs px-2 py-0.5 tracking-wide"
+                    >
+                      {f}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted text-xs mt-1">No flags yet</p>
+              )}
+            </div>
+          ))}
+          {progress.length === 0 && (
+            <p className="text-muted text-sm text-center py-10">
+              No players yet
+            </p>
+          )}
+        </div>
+      )}
     </>
   );
 }
 
-// ── Main AdminPage ─────────────────────────────────────────────────────────────
+// ── Admin Page ─────────────────────────────────────────────────────────────────
+
+const TABS = ["players", "clues", "progress"] as const;
+type Tab = (typeof TABS)[number];
 
 export default function AdminPage() {
-  const items = [
-    { key: "players", label: "Players", children: <PlayersPanel /> },
-    { key: "clues", label: "Clues", children: <CluesPanel /> },
-    { key: "progress", label: "Progress", children: <ProgressPanel /> },
-  ];
+  const [activeTab, setActiveTab] = useState<Tab>("players");
 
   return (
-    <div>
-      <Typography.Title level={3} style={{ marginTop: 0 }}>
+    <div className="animate-fade-in">
+      <h2
+        className="text-2xl text-cream mb-6"
+        style={{ fontFamily: "var(--font-family-display)" }}
+      >
         Admin Panel
-      </Typography.Title>
-      <Tabs items={items} />
+      </h2>
+
+      {/* Tabs */}
+      <div className="border-b border-gold/20 mb-6 flex">
+        {TABS.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-5 py-3 text-xs tracking-[0.3em] uppercase transition-colors capitalize ${
+              activeTab === tab
+                ? "text-gold border-b-2 border-gold -mb-px"
+                : "text-muted hover:text-cream"
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "players" && <PlayersPanel />}
+      {activeTab === "clues" && <CluesPanel />}
+      {activeTab === "progress" && <ProgressPanel />}
     </div>
   );
 }

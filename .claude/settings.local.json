@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(bun install:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(~/.bun/bin/bun remove:*)",
+      "Bash(~/.bun/bin/bun add:*)"
     ]
   }
 }

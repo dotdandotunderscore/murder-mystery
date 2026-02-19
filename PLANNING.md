@@ -38,7 +38,7 @@ GET  /api/admin/progress
 
 ## Things To Do / Remember
 
-- [ ] Change the default Admin PIN from `0000` after first deploy
+- [x] Change the default Admin PIN from `0000` after first deploy
 - [ ] Add real clue content via the admin panel — no hardcoded pages anymore
 - [ ] Mobile layout testing — guests will use phones, Ant Design dark theme untested on small screens
 - [ ] The `SecretPage`, `TestPage` components in `src/components/pages/` are now unused — can delete
