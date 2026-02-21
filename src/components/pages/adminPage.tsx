@@ -1106,12 +1106,12 @@ export default function AdminPage() {
       </h2>
 
       {/* Tabs */}
-      <div className="border-b border-gold/20 mb-6 flex">
+      <div className="border-b border-gold/20 mb-6 flex overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {TABS.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-5 py-3 text-xs tracking-[0.3em] uppercase transition-colors capitalize ${
+            className={`shrink-0 px-5 py-3 text-xs tracking-[0.3em] uppercase transition-colors capitalize ${
               activeTab === tab
                 ? "text-gold border-b-2 border-gold -mb-px"
                 : "text-muted hover:text-cream"
@@ -1122,10 +1122,12 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {activeTab === "players" && <PlayersPanel />}
-      {activeTab === "clues" && <CluesPanel />}
-      {activeTab === "prompts" && <PromptsPanel />}
-      {activeTab === "progress" && <ProgressPanel />}
+      <div className="min-h-[55vh]">
+        {activeTab === "players" && <PlayersPanel />}
+        {activeTab === "clues" && <CluesPanel />}
+        {activeTab === "prompts" && <PromptsPanel />}
+        {activeTab === "progress" && <ProgressPanel />}
+      </div>
     </div>
   );
 }
