@@ -1,5 +1,20 @@
 import { sql } from "bun";
 
+// --- Array helpers ---
+// Bun.sql doesn't serialize JS arrays to PostgreSQL array literals automatically.
+// These helpers produce the correct literal format, e.g. {"foo","bar"} or {1,2,3}.
+
+function pgTextArray(arr: string[] | null | undefined): string | null {
+  if (!arr || arr.length === 0) return null;
+  const escaped = arr.map((s) => '"' + s.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"');
+  return "{" + escaped.join(",") + "}";
+}
+
+function pgIntArray(arr: number[] | null | undefined): string | null {
+  if (!arr || arr.length === 0) return null;
+  return "{" + arr.join(",") + "}";
+}
+
 // --- Types ---
 
 export interface Player {
@@ -28,6 +43,7 @@ export interface Clue {
   visible_to_players: number[] | null;
   required_flags: string[] | null;
   grants_flags: string[] | null;
+  grants_words: string[] | null;
   sort_order: number;
   created_at: Date;
 }
@@ -37,6 +53,29 @@ export interface PlayerFlag {
   player_id: number;
   flag: string;
   granted_at: Date;
+}
+
+export interface PlayerWord {
+  id: number;
+  player_id: number;
+  word: string;
+  granted_at: Date;
+}
+
+export interface Prompt {
+  id: number;
+  clue_id: number;
+  question: string;
+  template: string;
+  answer: string[];
+  grants_flags: string[] | null;
+  grants_words: string[] | null;
+  sort_order: number;
+  created_at: Date;
+}
+
+export interface PromptWithCompletion extends Prompt {
+  completed: boolean;
 }
 
 // --- Schema setup ---
@@ -85,6 +124,42 @@ export async function initializeDatabase() {
       flag TEXT NOT NULL,
       granted_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(player_id, flag)
+    )
+  `;
+
+  await sql`ALTER TABLE clues ADD COLUMN IF NOT EXISTS grants_words TEXT[]`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS player_words (
+      id SERIAL PRIMARY KEY,
+      player_id INT REFERENCES players(id) ON DELETE CASCADE,
+      word TEXT NOT NULL,
+      granted_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(player_id, word)
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS prompts (
+      id SERIAL PRIMARY KEY,
+      clue_id INT REFERENCES clues(id) ON DELETE CASCADE,
+      question TEXT NOT NULL,
+      template TEXT NOT NULL,
+      answer TEXT[] NOT NULL,
+      grants_flags TEXT[],
+      grants_words TEXT[],
+      sort_order INT DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS player_prompt_completions (
+      id SERIAL PRIMARY KEY,
+      player_id INT REFERENCES players(id) ON DELETE CASCADE,
+      prompt_id INT REFERENCES prompts(id) ON DELETE CASCADE,
+      completed_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(player_id, prompt_id)
     )
   `;
 
@@ -198,23 +273,25 @@ export async function createClue(data: {
   visible_to_players?: number[] | null;
   required_flags?: string[] | null;
   grants_flags?: string[] | null;
+  grants_words?: string[] | null;
   sort_order?: number;
 }): Promise<Clue> {
   const [clue] = await sql`
     INSERT INTO clues (
       code_phrase, title, content, page_type,
       visible_to_teams, visible_to_players,
-      required_flags, grants_flags, sort_order
+      required_flags, grants_flags, grants_words, sort_order
     )
     VALUES (
       ${data.code_phrase},
       ${data.title},
       ${data.content ?? ""},
       ${data.page_type ?? "text"},
-      ${data.visible_to_teams ?? null},
-      ${data.visible_to_players ?? null},
-      ${data.required_flags ?? null},
-      ${data.grants_flags ?? null},
+      ${pgTextArray(data.visible_to_teams)},
+      ${pgIntArray(data.visible_to_players)},
+      ${pgTextArray(data.required_flags)},
+      ${pgTextArray(data.grants_flags)},
+      ${pgTextArray(data.grants_words)},
       ${data.sort_order ?? 0}
     )
     RETURNING *
@@ -233,6 +310,7 @@ export async function updateClue(
     visible_to_players?: number[] | null;
     required_flags?: string[] | null;
     grants_flags?: string[] | null;
+    grants_words?: string[] | null;
     sort_order?: number;
   }
 ): Promise<Clue | null> {
@@ -242,10 +320,11 @@ export async function updateClue(
       title = ${data.title},
       content = ${data.content ?? ""},
       page_type = ${data.page_type ?? "text"},
-      visible_to_teams = ${data.visible_to_teams ?? null},
-      visible_to_players = ${data.visible_to_players ?? null},
-      required_flags = ${data.required_flags ?? null},
-      grants_flags = ${data.grants_flags ?? null},
+      visible_to_teams = ${pgTextArray(data.visible_to_teams)},
+      visible_to_players = ${pgIntArray(data.visible_to_players)},
+      required_flags = ${pgTextArray(data.required_flags)},
+      grants_flags = ${pgTextArray(data.grants_flags)},
+      grants_words = ${pgTextArray(data.grants_words)},
       sort_order = ${data.sort_order ?? 0}
     WHERE id = ${id}
     RETURNING *
@@ -277,13 +356,167 @@ export async function grantPlayerFlags(playerId: number, flags: string[]): Promi
   }
 }
 
-export async function getAllProgress(): Promise<Array<{ player: Omit<Player, "pin">; flags: string[] }>> {
+export async function getAllProgress(): Promise<Array<{ player: Omit<Player, "pin">; flags: string[]; words: string[] }>> {
   const players = await getAllPlayers();
   const result = [];
   for (const player of players) {
     const flags = await getPlayerFlags(player.id);
+    const words = await getPlayerWords(player.id);
     const { pin, ...safePlayer } = player;
-    result.push({ player: safePlayer, flags });
+    result.push({ player: safePlayer, flags, words });
   }
   return result;
+}
+
+// --- Player words functions ---
+
+export async function getPlayerWords(playerId: number): Promise<string[]> {
+  const rows = await sql`
+    SELECT word FROM player_words WHERE player_id = ${playerId} ORDER BY granted_at
+  `;
+  return rows.map((r: { word: string }) => r.word);
+}
+
+export async function getPlayerWordsWithIds(playerId: number): Promise<PlayerWord[]> {
+  return await sql`
+    SELECT * FROM player_words WHERE player_id = ${playerId} ORDER BY granted_at
+  `;
+}
+
+export async function resetPlayerProgress(playerId: number): Promise<void> {
+  await sql`DELETE FROM player_flags WHERE player_id = ${playerId}`;
+  await sql`DELETE FROM player_words WHERE player_id = ${playerId}`;
+  await sql`DELETE FROM player_prompt_completions WHERE player_id = ${playerId}`;
+}
+
+export async function grantPlayerWords(playerId: number, words: string[]): Promise<void> {
+  for (const word of words) {
+    await sql`
+      INSERT INTO player_words (player_id, word)
+      VALUES (${playerId}, ${word})
+      ON CONFLICT (player_id, word) DO NOTHING
+    `;
+  }
+}
+
+export async function removePlayerWord(playerId: number, wordId: number): Promise<boolean> {
+  const result = await sql`
+    DELETE FROM player_words WHERE id = ${wordId} AND player_id = ${playerId} RETURNING id
+  `;
+  return result.length > 0;
+}
+
+// --- Prompt functions ---
+
+export async function getCluePrompts(clueId: number, playerId: number): Promise<PromptWithCompletion[]> {
+  const rows = await sql`
+    SELECT p.*, (ppc.id IS NOT NULL) AS completed
+    FROM prompts p
+    LEFT JOIN player_prompt_completions ppc
+      ON ppc.prompt_id = p.id AND ppc.player_id = ${playerId}
+    WHERE p.clue_id = ${clueId}
+    ORDER BY p.sort_order, p.created_at
+  `;
+  return rows.map((r: Prompt & { completed: unknown }) => ({ ...r, completed: Boolean(r.completed) }));
+}
+
+export async function getAllPrompts(): Promise<Prompt[]> {
+  return await sql`SELECT * FROM prompts ORDER BY clue_id, sort_order, created_at`;
+}
+
+export async function getPromptById(id: number): Promise<Prompt | null> {
+  const rows = await sql`SELECT * FROM prompts WHERE id = ${id}`;
+  return rows[0] ?? null;
+}
+
+export async function createPrompt(data: {
+  clue_id: number;
+  question: string;
+  template: string;
+  answer: string[];
+  grants_flags?: string[] | null;
+  grants_words?: string[] | null;
+  sort_order?: number;
+}): Promise<Prompt> {
+  const [prompt] = await sql`
+    INSERT INTO prompts (clue_id, question, template, answer, grants_flags, grants_words, sort_order)
+    VALUES (
+      ${data.clue_id},
+      ${data.question},
+      ${data.template},
+      ${pgTextArray(data.answer)},
+      ${pgTextArray(data.grants_flags)},
+      ${pgTextArray(data.grants_words)},
+      ${data.sort_order ?? 0}
+    )
+    RETURNING *
+  `;
+  return prompt;
+}
+
+export async function updatePrompt(
+  id: number,
+  data: {
+    clue_id: number;
+    question: string;
+    template: string;
+    answer: string[];
+    grants_flags?: string[] | null;
+    grants_words?: string[] | null;
+    sort_order?: number;
+  }
+): Promise<Prompt | null> {
+  const [prompt] = await sql`
+    UPDATE prompts SET
+      clue_id = ${data.clue_id},
+      question = ${data.question},
+      template = ${data.template},
+      answer = ${pgTextArray(data.answer)},
+      grants_flags = ${pgTextArray(data.grants_flags)},
+      grants_words = ${pgTextArray(data.grants_words)},
+      sort_order = ${data.sort_order ?? 0}
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  return prompt ?? null;
+}
+
+export async function deletePrompt(id: number): Promise<boolean> {
+  const result = await sql`DELETE FROM prompts WHERE id = ${id} RETURNING id`;
+  return result.length > 0;
+}
+
+export async function submitPromptAnswer(
+  promptId: number,
+  playerId: number,
+  words: string[]
+): Promise<{ correct: boolean; grants_flags?: string[]; grants_words?: string[] }> {
+  const prompt = await getPromptById(promptId);
+  if (!prompt) return { correct: false };
+
+  const normalize = (s: string) => s.trim().toUpperCase();
+  const correct =
+    prompt.answer.length === words.length &&
+    prompt.answer.every((a, i) => normalize(a) === normalize(words[i]));
+
+  if (!correct) return { correct: false };
+
+  await sql`
+    INSERT INTO player_prompt_completions (player_id, prompt_id)
+    VALUES (${playerId}, ${promptId})
+    ON CONFLICT (player_id, prompt_id) DO NOTHING
+  `;
+
+  if (prompt.grants_flags && prompt.grants_flags.length > 0) {
+    await grantPlayerFlags(playerId, prompt.grants_flags);
+  }
+  if (prompt.grants_words && prompt.grants_words.length > 0) {
+    await grantPlayerWords(playerId, prompt.grants_words);
+  }
+
+  return {
+    correct: true,
+    grants_flags: prompt.grants_flags ?? undefined,
+    grants_words: prompt.grants_words ?? undefined,
+  };
 }

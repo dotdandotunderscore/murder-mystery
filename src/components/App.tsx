@@ -3,6 +3,7 @@ import { usePlayer } from "../context/PlayerContext";
 import LoginPage from "./pages/LoginPage";
 import AdminPage from "./pages/adminPage";
 import HomePage from "./pages/homePage";
+import CluePage from "./pages/CluePage";
 
 interface ClueResult {
   id: number;
@@ -66,26 +67,7 @@ export default function App() {
     if (currentPage === "admin" && player.is_admin) return <AdminPage />;
 
     if (currentPage === "clue" && clue) {
-      return (
-        <div className="animate-fade-in">
-          <div className="border border-gold/25 bg-surface p-8 mb-6">
-            <p className="text-gold text-xs tracking-[0.45em] uppercase mb-4">
-              — Classified —
-            </p>
-            <h2 className="text-3xl text-cream mb-5">{clue.title}</h2>
-            <div className="h-px bg-gold/25 mb-6" />
-            <p className="text-cream leading-relaxed whitespace-pre-wrap text-lg">
-              {clue.content}
-            </p>
-          </div>
-          <button
-            onClick={handleBack}
-            className="text-muted text-xs tracking-widest uppercase hover:text-gold transition-colors"
-          >
-            ← Return
-          </button>
-        </div>
-      );
+      return <CluePage clue={clue} onBack={handleBack} />;
     }
 
     return <HomePage />;

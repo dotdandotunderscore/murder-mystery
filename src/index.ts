@@ -18,6 +18,17 @@ import {
   getPlayerFlags,
   grantPlayerFlags,
   getAllProgress,
+  getPlayerWords,
+  getPlayerWordsWithIds,
+  grantPlayerWords,
+  removePlayerWord,
+  resetPlayerProgress,
+  getCluePrompts,
+  getAllPrompts,
+  createPrompt,
+  updatePrompt,
+  deletePrompt,
+  submitPromptAnswer,
   type Player,
 } from "../db/index";
 
@@ -120,12 +131,15 @@ const server = Bun.serve({
           if (!hasAll) return json({ error: "You're missing a prerequisite" }, 403);
         }
 
-        // Grant flags
+        // Grant flags and words
         if (clue.grants_flags && clue.grants_flags.length > 0) {
           await grantPlayerFlags(player.id, clue.grants_flags);
         }
+        if (clue.grants_words && clue.grants_words.length > 0) {
+          await grantPlayerWords(player.id, clue.grants_words);
+        }
 
-        const { visible_to_teams, visible_to_players, required_flags, grants_flags, ...clueData } = clue;
+        const { visible_to_teams, visible_to_players, required_flags, grants_flags, grants_words, ...clueData } = clue;
         return json(clueData);
       },
     },
@@ -233,6 +247,120 @@ const server = Bun.serve({
       },
     },
 
+    // --- Inventory ---
+
+    "/api/inventory": {
+      GET: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
+        const words = await getPlayerWords(player.id);
+        return json(words);
+      },
+    },
+
+    // --- Prompts ---
+
+    "/api/clues/:id/prompts": {
+      GET: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
+        const clueId = parseInt(req.params.id);
+        const prompts = await getCluePrompts(clueId, player.id);
+        // Strip answer from response so players can't cheat via devtools
+        return json(prompts.map(({ answer, ...p }) => p));
+      },
+    },
+
+    "/api/prompts/:id/submit": {
+      POST: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
+        const promptId = parseInt(req.params.id);
+        const body = (await req.json()) as { words: string[] };
+        if (!Array.isArray(body.words)) return json({ error: "Bad request" }, 400);
+        const result = await submitPromptAnswer(promptId, player.id, body.words);
+        return json(result);
+      },
+    },
+
+    // --- Admin: Player words ---
+
+    "/api/admin/players/:id/reset-progress": {
+      POST: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const id = parseInt(req.params.id);
+        await resetPlayerProgress(id);
+        return json({ ok: true });
+      },
+    },
+
+    "/api/admin/players/:id/words": {
+      GET: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const id = parseInt(req.params.id);
+        const words = await getPlayerWordsWithIds(id);
+        return json(words);
+      },
+      POST: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const id = parseInt(req.params.id);
+        const body = (await req.json()) as { words: string[] };
+        if (!Array.isArray(body.words)) return json({ error: "Bad request" }, 400);
+        await grantPlayerWords(id, body.words);
+        return json({ ok: true });
+      },
+    },
+
+    "/api/admin/players/:id/words/:wordId": {
+      DELETE: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const id = parseInt(req.params.id);
+        const wordId = parseInt(req.params.wordId);
+        const ok = await removePlayerWord(id, wordId);
+        return json({ ok }, ok ? 200 : 404);
+      },
+    },
+
+    // --- Admin: Prompts ---
+
+    "/api/admin/prompts": {
+      GET: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        return json(await getAllPrompts());
+      },
+      POST: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const body = await req.json();
+        const prompt = await createPrompt(body);
+        return json(prompt, 201);
+      },
+    },
+
+    "/api/admin/prompts/:id": {
+      PUT: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const id = parseInt(req.params.id);
+        const body = await req.json();
+        const prompt = await updatePrompt(id, body);
+        if (!prompt) return json({ error: "Not found" }, 404);
+        return json(prompt);
+      },
+      DELETE: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const id = parseInt(req.params.id);
+        const ok = await deletePrompt(id);
+        return json({ ok }, ok ? 200 : 404);
+      },
+    },
+
     // --- Admin: Progress ---
 
     "/api/admin/progress": {
@@ -245,6 +373,14 @@ const server = Bun.serve({
 
     // --- Frontend catch-all ---
     "/*": index,
+  },
+
+  error(err) {
+    console.error("Unhandled server error:", err);
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   },
 
   development: process.env.NODE_ENV !== "production" && {
