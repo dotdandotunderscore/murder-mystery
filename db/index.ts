@@ -78,6 +78,19 @@ export interface PromptWithCompletion extends Prompt {
   completed: boolean;
 }
 
+export interface Trade {
+  id: number;
+  initiator_id: number;
+  initiator_name: string;
+  initiator_word: string;
+  recipient_id: number;
+  recipient_name: string;
+  recipient_word: string | null;
+  status: "offered" | "countered" | "accepted" | "cancelled";
+  created_at: Date;
+  expires_at: Date;
+}
+
 // --- Schema setup ---
 
 export async function initializeDatabase() {
@@ -160,6 +173,19 @@ export async function initializeDatabase() {
       prompt_id INT REFERENCES prompts(id) ON DELETE CASCADE,
       completed_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(player_id, prompt_id)
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS trades (
+      id SERIAL PRIMARY KEY,
+      initiator_id INT REFERENCES players(id) ON DELETE CASCADE,
+      initiator_word TEXT NOT NULL,
+      recipient_id INT REFERENCES players(id) ON DELETE CASCADE,
+      recipient_word TEXT,
+      status TEXT DEFAULT 'offered',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      expires_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '30 minutes'
     )
   `;
 
@@ -483,6 +509,111 @@ export async function updatePrompt(
 
 export async function deletePrompt(id: number): Promise<boolean> {
   const result = await sql`DELETE FROM prompts WHERE id = ${id} RETURNING id`;
+  return result.length > 0;
+}
+
+// --- Trade functions ---
+
+export async function getTradeById(id: number): Promise<Trade | null> {
+  const rows = await sql`
+    SELECT t.*, p1.name AS initiator_name, p2.name AS recipient_name
+    FROM trades t
+    JOIN players p1 ON p1.id = t.initiator_id
+    JOIN players p2 ON p2.id = t.recipient_id
+    WHERE t.id = ${id}
+  `;
+  return rows[0] ?? null;
+}
+
+export async function getPlayerActiveTrades(playerId: number): Promise<Trade[]> {
+  return await sql`
+    SELECT t.*, p1.name AS initiator_name, p2.name AS recipient_name
+    FROM trades t
+    JOIN players p1 ON p1.id = t.initiator_id
+    JOIN players p2 ON p2.id = t.recipient_id
+    WHERE (t.initiator_id = ${playerId} OR t.recipient_id = ${playerId})
+      AND t.status IN ('offered', 'countered')
+      AND t.expires_at > NOW()
+    ORDER BY t.created_at DESC
+  `;
+}
+
+export async function createTrade(
+  initiatorId: number,
+  initiatorWord: string,
+  recipientId: number
+): Promise<Trade | null> {
+  const words = await getPlayerWords(initiatorId);
+  if (!words.includes(initiatorWord)) return null;
+
+  const [row] = await sql`
+    INSERT INTO trades (initiator_id, initiator_word, recipient_id)
+    VALUES (${initiatorId}, ${initiatorWord}, ${recipientId})
+    RETURNING id
+  `;
+  return getTradeById(row.id);
+}
+
+export async function counterTrade(
+  tradeId: number,
+  recipientId: number,
+  recipientWord: string
+): Promise<Trade | null> {
+  const trade = await getTradeById(tradeId);
+  if (!trade || trade.recipient_id !== recipientId || trade.status !== "offered") return null;
+
+  const words = await getPlayerWords(recipientId);
+  if (!words.includes(recipientWord)) return null;
+
+  await sql`
+    UPDATE trades SET recipient_word = ${recipientWord}, status = 'countered'
+    WHERE id = ${tradeId}
+  `;
+  return getTradeById(tradeId);
+}
+
+export async function acceptTrade(
+  tradeId: number,
+  initiatorId: number
+): Promise<{ ok: boolean; error?: string }> {
+  const trade = await getTradeById(tradeId);
+  if (!trade) return { ok: false, error: "Trade not found" };
+  if (trade.initiator_id !== initiatorId) return { ok: false, error: "Not your trade" };
+  if (trade.status !== "countered") return { ok: false, error: "Trade not ready to accept" };
+  if (!trade.recipient_word) return { ok: false, error: "No counter offer" };
+
+  const [initiatorWords, recipientWords] = await Promise.all([
+    getPlayerWords(trade.initiator_id),
+    getPlayerWords(trade.recipient_id),
+  ]);
+
+  if (!initiatorWords.includes(trade.initiator_word)) {
+    await sql`UPDATE trades SET status = 'cancelled' WHERE id = ${tradeId}`;
+    return { ok: false, error: "Your offered word is no longer in your inventory" };
+  }
+  if (!recipientWords.includes(trade.recipient_word)) {
+    await sql`UPDATE trades SET status = 'cancelled' WHERE id = ${tradeId}`;
+    return { ok: false, error: "Partner's offered word is no longer in their inventory" };
+  }
+
+  // Swap words
+  await sql`DELETE FROM player_words WHERE player_id = ${trade.initiator_id} AND word = ${trade.initiator_word}`;
+  await sql`DELETE FROM player_words WHERE player_id = ${trade.recipient_id} AND word = ${trade.recipient_word}`;
+  await sql`INSERT INTO player_words (player_id, word) VALUES (${trade.recipient_id}, ${trade.initiator_word}) ON CONFLICT DO NOTHING`;
+  await sql`INSERT INTO player_words (player_id, word) VALUES (${trade.initiator_id}, ${trade.recipient_word}) ON CONFLICT DO NOTHING`;
+  await sql`UPDATE trades SET status = 'accepted' WHERE id = ${tradeId}`;
+
+  return { ok: true };
+}
+
+export async function cancelTrade(tradeId: number, playerId: number): Promise<boolean> {
+  const result = await sql`
+    UPDATE trades SET status = 'cancelled'
+    WHERE id = ${tradeId}
+      AND (initiator_id = ${playerId} OR recipient_id = ${playerId})
+      AND status IN ('offered', 'countered')
+    RETURNING id
+  `;
   return result.length > 0;
 }
 

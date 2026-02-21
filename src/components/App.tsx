@@ -1,9 +1,14 @@
 import React, { useState } from "react";
 import { usePlayer } from "../context/PlayerContext";
+import { TradeProvider, useTradeContext } from "../context/TradeContext";
 import LoginPage from "./pages/LoginPage";
 import AdminPage from "./pages/adminPage";
 import HomePage from "./pages/homePage";
 import CluePage from "./pages/CluePage";
+import TradePanel from "./TradePanel";
+import TradeOfferModal from "./TradeOfferModal";
+import InventoryPanel from "./InventoryPanel";
+import { Bell } from "lucide-react";
 
 interface ClueResult {
   id: number;
@@ -12,8 +17,9 @@ interface ClueResult {
   page_type: string;
 }
 
-export default function App() {
+function AppInner() {
   const { player, loading, logout } = usePlayer();
+  const { pendingActionCount, setPanelOpen, inventory, inventoryOpen, setInventoryOpen, setOfferWord } = useTradeContext();
   const [codeInput, setCodeInput] = useState("");
   const [currentPage, setCurrentPage] = useState<string | null>(null);
   const [clue, setClue] = useState<ClueResult | null>(null);
@@ -95,6 +101,26 @@ export default function App() {
                 {currentPage === "admin" ? "← Home" : "Admin"}
               </button>
             )}
+            {currentPage !== "admin" && inventory.length > 0 && (
+              <button
+                onClick={() => setInventoryOpen(true)}
+                className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
+              >
+                Evidence ({inventory.length})
+              </button>
+            )}
+            <button
+              onClick={() => setPanelOpen(true)}
+              className="relative text-muted hover:text-gold transition-colors"
+              aria-label="Trades"
+            >
+              <Bell size={16} />
+              {pendingActionCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-gold text-ink text-[9px] font-bold w-4 h-4 flex items-center justify-center">
+                  {pendingActionCount}
+                </span>
+              )}
+            </button>
             <button
               onClick={logout}
               className="text-muted text-xs tracking-widest uppercase hover:text-cream transition-colors"
@@ -143,6 +169,28 @@ export default function App() {
 
         {renderPage()}
       </main>
+
+      <TradePanel />
+      <TradeOfferModal />
+
+      {/* App-level inventory panel — tap a word to offer it in a trade */}
+      <InventoryPanel
+        words={inventory}
+        placedWords={new Set()}
+        selectedWord={null}
+        onSelectWord={setOfferWord}
+        open={inventoryOpen}
+        onClose={() => setInventoryOpen(false)}
+        hint="Tap a word to offer it in a trade"
+      />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <TradeProvider>
+      <AppInner />
+    </TradeProvider>
   );
 }

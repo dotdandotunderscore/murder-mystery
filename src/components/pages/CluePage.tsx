@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect } from "react";
 import PromptBlock from "../PromptBlock";
 import InventoryPanel from "../InventoryPanel";
+import { useTradeContext } from "../../context/TradeContext";
 
 interface ClueResult {
   id: number;
@@ -30,9 +31,9 @@ function parseTemplate(template: string): string[] {
 }
 
 export default function CluePage({ clue, onBack }: CluePageProps) {
-  const [prompts, setPrompts] = useState<Prompt[]>([]);
-  const [inventory, setInventory] = useState<string[]>([]);
+  const { inventory, refreshInventory } = useTradeContext();
   const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [prompts, setPrompts] = useState<Prompt[]>([]);
 
   // selectedWord: which word chip the player has tapped/clicked
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
@@ -40,17 +41,11 @@ export default function CluePage({ clue, onBack }: CluePageProps) {
   // placements: Record<promptId, (string|null)[]>
   const [placements, setPlacements] = useState<Record<number, (string | null)[]>>({});
 
-  const fetchInventory = useCallback(async () => {
-    const res = await fetch("/api/inventory");
-    if (res.ok) setInventory(await res.json());
-  }, []);
-
   useEffect(() => {
     fetch(`/api/clues/${clue.id}/prompts`)
       .then((r) => r.json())
       .then((data: Prompt[]) => {
         setPrompts(data);
-        // Initialise placement arrays to all-null
         const init: Record<number, (string | null)[]> = {};
         for (const p of data) {
           const gapCount = parseTemplate(p.template).length - 1;
@@ -58,8 +53,8 @@ export default function CluePage({ clue, onBack }: CluePageProps) {
         }
         setPlacements(init);
       });
-    fetchInventory();
-  }, [clue.id, fetchInventory]);
+    refreshInventory();
+  }, [clue.id]);
 
   // All words currently sitting in any gap
   const placedWords = new Set<string>(
@@ -75,12 +70,10 @@ export default function CluePage({ clue, onBack }: CluePageProps) {
       const slots = [...(prev[promptId] ?? [])];
 
       if (selectedWord) {
-        // Place the selected word; if the gap was occupied, that word becomes selected
         const displaced = slots[gapIndex];
         slots[gapIndex] = selectedWord;
         setSelectedWord(displaced ?? null);
       } else if (currentWord) {
-        // No word selected — pick up whatever is in the gap
         slots[gapIndex] = null;
         setSelectedWord(currentWord);
       }
@@ -88,9 +81,6 @@ export default function CluePage({ clue, onBack }: CluePageProps) {
       return { ...prev, [promptId]: slots };
     });
   };
-
-  // After a correct submission, refetch inventory so new words appear
-  const handleCorrect = fetchInventory;
 
   return (
     <div className="animate-fade-in">
@@ -119,7 +109,7 @@ export default function CluePage({ clue, onBack }: CluePageProps) {
               selectedWord={selectedWord}
               placements={placements[prompt.id] ?? []}
               onGapClick={handleGapClick}
-              onCorrect={handleCorrect}
+              onCorrect={refreshInventory}
             />
           ))}
         </div>

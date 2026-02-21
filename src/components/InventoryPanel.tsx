@@ -7,6 +7,7 @@ interface InventoryPanelProps {
   onSelectWord: (word: string) => void;
   open: boolean;
   onClose: () => void;
+  hint?: string;
 }
 
 export default function InventoryPanel({
@@ -16,8 +17,8 @@ export default function InventoryPanel({
   onSelectWord,
   open,
   onClose,
+  hint,
 }: InventoryPanelProps) {
-  // Close on Escape
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -27,7 +28,6 @@ export default function InventoryPanel({
 
   return (
     <>
-      {/* Backdrop */}
       {open && (
         <div
           className="fixed inset-0 z-30 bg-ink/60"
@@ -35,7 +35,6 @@ export default function InventoryPanel({
         />
       )}
 
-      {/* Panel — slides up from bottom */}
       <div
         className={`fixed bottom-0 left-0 right-0 z-40 bg-surface-3 border-t border-gold/30 transition-transform duration-300 ${
           open ? "translate-y-0" : "translate-y-full"
@@ -89,9 +88,9 @@ export default function InventoryPanel({
           )}
 
           <p className="text-muted/60 text-xs mt-3">
-            {selectedWord
+            {hint ?? (selectedWord
               ? `"${selectedWord}" selected — tap a gap to place it`
-              : "Tap a word to select it, then tap a gap in a prompt above"}
+              : "Tap a word to select it, then tap a gap in a prompt above")}
           </p>
         </div>
       </div>

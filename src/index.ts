@@ -29,8 +29,24 @@ import {
   updatePrompt,
   deletePrompt,
   submitPromptAnswer,
+  getTradeById,
+  getPlayerActiveTrades,
+  createTrade,
+  counterTrade,
+  acceptTrade,
+  cancelTrade,
   type Player,
 } from "../db/index";
+
+// --- WebSocket connections ---
+
+type WSData = { playerId: number };
+const connections = new Map<number, import("bun").ServerWebSocket<WSData>>();
+
+function pushToPlayer(playerId: number, data: object) {
+  const ws = connections.get(playerId);
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(data));
+}
 
 // Initialize DB on startup
 await initializeDatabase();
@@ -64,7 +80,8 @@ function json(data: unknown, status = 200, extraHeaders?: Record<string, string>
   });
 }
 
-const server = Bun.serve({
+let server: ReturnType<typeof Bun.serve>;
+server = Bun.serve({
   routes: {
     // --- Auth ---
 
@@ -371,8 +388,108 @@ const server = Bun.serve({
       },
     },
 
+    // --- WebSocket upgrade ---
+
+    "/api/ws": async (req) => {
+      const player = await getCurrentPlayer(req);
+      if (!player) return json({ error: "Unauthorized" }, 401);
+      const ok = server.upgrade(req, { data: { playerId: player.id } });
+      return ok ? new Response() : json({ error: "Upgrade failed" }, 400);
+    },
+
+    // --- Players (public list for trade recipient picker) ---
+
+    "/api/players": {
+      GET: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
+        const all = await getAllPlayers();
+        return json(
+          all
+            .filter((p) => p.id !== player.id)
+            .map((p) => ({ id: p.id, name: p.name, team: p.team }))
+        );
+      },
+    },
+
+    // --- Trades ---
+
+    "/api/trades": {
+      GET: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
+        return json(await getPlayerActiveTrades(player.id));
+      },
+      POST: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
+        const body = (await req.json()) as { word: string; recipient_id: number };
+        if (!body.word || !body.recipient_id) return json({ error: "Bad request" }, 400);
+        if (body.recipient_id === player.id) return json({ error: "Cannot trade with yourself" }, 400);
+        const trade = await createTrade(player.id, body.word, body.recipient_id);
+        if (!trade) return json({ error: "Word not in your inventory" }, 400);
+        pushToPlayer(body.recipient_id, { type: "trade_update", trade });
+        return json(trade, 201);
+      },
+    },
+
+    "/api/trades/:id/counter": {
+      PUT: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
+        const id = parseInt(req.params.id);
+        const body = (await req.json()) as { word: string };
+        const trade = await counterTrade(id, player.id, body.word);
+        if (!trade) return json({ error: "Cannot counter this trade" }, 400);
+        pushToPlayer(trade.initiator_id, { type: "trade_update", trade });
+        return json(trade);
+      },
+    },
+
+    "/api/trades/:id/accept": {
+      POST: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
+        const id = parseInt(req.params.id);
+        const result = await acceptTrade(id, player.id);
+        if (!result.ok) return json({ error: result.error }, 400);
+        const trade = await getTradeById(id);
+        if (trade) {
+          pushToPlayer(trade.initiator_id, { type: "trade_update", trade });
+          pushToPlayer(trade.recipient_id, { type: "trade_update", trade });
+        }
+        return json({ ok: true });
+      },
+    },
+
+    "/api/trades/:id": {
+      DELETE: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
+        const id = parseInt(req.params.id);
+        const trade = await getTradeById(id);
+        const ok = await cancelTrade(id, player.id);
+        if (!ok) return json({ error: "Trade not found or cannot be cancelled" }, 404);
+        if (trade) {
+          const otherId = trade.initiator_id === player.id ? trade.recipient_id : trade.initiator_id;
+          pushToPlayer(otherId, { type: "trade_removed", tradeId: id });
+        }
+        return json({ ok: true });
+      },
+    },
+
     // --- Frontend catch-all ---
     "/*": index,
+  },
+
+  websocket: {
+    open(ws: import("bun").ServerWebSocket<WSData>) {
+      connections.set(ws.data.playerId, ws);
+    },
+    message() {},
+    close(ws: import("bun").ServerWebSocket<WSData>) {
+      connections.delete(ws.data.playerId);
+    },
   },
 
   error(err) {

@@ -72,10 +72,63 @@ GET        /api/admin/progress
 
 1. ~~**DB-backed code system + admin panel**~~ ✅ Done
 2. ~~**Word inventory + prompt system**~~ ✅ Done
-3. **Content authoring** — write the actual mystery clues and enter them via the admin panel
+3. ~~**Word trading system**~~ ✅ Done (see spec below)
+4. **Content authoring** — write the actual mystery clues and enter them via the admin panel
 4. **Mobile-first UI polish** — noir/gothic aesthetic, atmospheric typography, dark imagery
 5. **Evidence board** — visual payoff as players unlock clues (pins on cork board, red string)
 6. **One minigame** — safe cracker or cipher decoder to start
+
+---
+
+## Word Trading System
+
+### Mechanics
+- Words are **consumed on trade** — the giver loses the word from their inventory
+- True bilateral **trade**: both players offer a word; both must agree before anything transfers
+- **Real-time push** via WebSocket — player gets an instant bell notification when a trade arrives
+- Offers expire after **30 minutes**
+
+### Flow
+1. Player A taps "Offer" on a word in their inventory → picks a recipient → sends offer
+2. Player B's bell icon lights up instantly (WebSocket push)
+3. Player B opens trade panel → sees the offer → picks one of their own words to counter with
+4. Player A gets notified → sees the counter-offer → accepts or cancels
+5. On accept: both words atomically swap; both inventories update
+
+Either party can cancel at any time before acceptance.
+
+### DB Schema
+```sql
+CREATE TABLE trades (
+  id SERIAL PRIMARY KEY,
+  initiator_id    INT REFERENCES players(id) ON DELETE CASCADE,
+  initiator_word  TEXT NOT NULL,
+  recipient_id    INT REFERENCES players(id) ON DELETE CASCADE,
+  recipient_word  TEXT,              -- null until recipient counters
+  status          TEXT DEFAULT 'offered',  -- offered | countered | accepted | cancelled
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  expires_at      TIMESTAMPTZ DEFAULT NOW() + INTERVAL '30 minutes'
+);
+```
+
+### API
+```
+GET/POST   /api/trades                  — list active trades / create offer
+PUT        /api/trades/:id/counter      — recipient proposes their word back
+POST       /api/trades/:id/accept       — initiator confirms the counter
+DELETE     /api/trades/:id              — either party cancels
+GET        /api/players                 — public player list (for picking trade recipients)
+WS         /api/ws                      — persistent connection for push notifications
+```
+
+### Frontend
+- Bell icon in header with badge count (trades needing your action)
+- "Evidence (N)" button in header — always opens the app-level trade panel regardless of current page
+- Trade panel (slide-in from right) — shows incoming/outgoing trades with action buttons; also shows your inventory inline
+- Tapping a word in the app-level evidence panel opens the trade offer modal for that word
+- On clue pages a separate local evidence panel (footer button) is used for gap-filling — these two panels are independent
+- Inline word picker in the trade panel for countering (uses shared inventory from `TradeContext`)
+- WebSocket managed in `TradeContext` (connects on login, disconnects on logout); inventory also lives in `TradeContext`
 
 ---
 
