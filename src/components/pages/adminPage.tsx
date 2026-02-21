@@ -36,12 +36,6 @@ interface Prompt {
   sort_order: number;
 }
 
-interface PlayerWord {
-  id: number;
-  player_id: number;
-  word: string;
-}
-
 interface Progress {
   player: Player;
   flags: string[];
