@@ -94,7 +94,7 @@ export default function PromptBlock({
       (reward?.words?.length ?? 0) > 0 || (reward?.flags?.length ?? 0) > 0;
 
     return (
-      <div className="border border-gold/30 bg-surface p-5 mb-4">
+      <div className="border border-gold/30 bg-surface-2 p-5 mb-4">
         <p className="text-gold text-xs tracking-[0.35em] uppercase mb-2">
           — Solved —
         </p>
@@ -162,14 +162,11 @@ export default function PromptBlock({
   }
 
   return (
-    <div className="border border-gold/20 bg-surface p-5 mb-4">
-      <p className="text-gold text-xs tracking-[0.35em] uppercase mb-3">
-        — Prompt —
-      </p>
-      <p className="text-cream text-sm mb-4">{prompt.question}</p>
+    <div className="border border-gold/20 bg-surface-2 p-5 mb-4">
+      <p className="text-muted text-sm italic mb-4">{prompt.question}</p>
 
       {/* Template with gaps */}
-      <div className="flex flex-wrap items-baseline gap-x-1 gap-y-2 mb-5 text-cream text-sm leading-relaxed">
+      <div className="flex flex-wrap items-baseline gap-x-1 gap-y-2 mb-5 text-cream leading-relaxed">
         {segments.map((seg, i) => (
           <React.Fragment key={i}>
             <span>{seg}</span>

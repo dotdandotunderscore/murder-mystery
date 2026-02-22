@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import PromptBlock from "../PromptBlock";
-import InventoryPanel from "../InventoryPanel";
 import { useTradeContext } from "../../context/TradeContext";
 
 interface ClueResult {
@@ -50,13 +49,8 @@ function highlightText(text: string, terms: string[]): React.ReactNode {
 
 export default function PageView({ clue, onBack }: PageViewProps) {
   const { inventory, refreshInventory } = useTradeContext();
-  const [inventoryOpen, setInventoryOpen] = useState(false);
   const [prompts, setPrompts] = useState<Prompt[]>([]);
-
-  // selectedWord: which word chip the player has tapped/clicked
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
-
-  // placements: Record<promptId, (string|null)[]>
   const [placements, setPlacements] = useState<Record<number, (string | null)[]>>({});
 
   useEffect(() => {
@@ -74,7 +68,6 @@ export default function PageView({ clue, onBack }: PageViewProps) {
     refreshInventory();
   }, [clue.id]);
 
-  // All words currently sitting in any gap
   const placedWords = new Set<string>(
     Object.values(placements).flat().filter(Boolean) as string[]
   );
@@ -84,33 +77,41 @@ export default function PageView({ clue, onBack }: PageViewProps) {
   };
 
   const handleGapClick = (promptId: number, gapIndex: number, currentWord: string | null) => {
-    setPlacements((prev) => {
-      const slots = [...(prev[promptId] ?? [])];
-
-      if (selectedWord) {
+    if (selectedWord) {
+      setPlacements((prev) => {
+        const slots = [...(prev[promptId] ?? [])];
         const displaced = slots[gapIndex];
         slots[gapIndex] = selectedWord;
         setSelectedWord(displaced ?? null);
-      } else if (currentWord) {
+        return { ...prev, [promptId]: slots };
+      });
+    } else if (currentWord) {
+      setPlacements((prev) => {
+        const slots = [...(prev[promptId] ?? [])];
         slots[gapIndex] = null;
-        setSelectedWord(currentWord);
-      }
-
-      return { ...prev, [promptId]: slots };
-    });
+        return { ...prev, [promptId]: slots };
+      });
+      setSelectedWord(currentWord);
+    }
   };
 
   const highlightTerms = [...(clue.grants_words ?? []), ...(clue.grants_flags ?? [])];
   const hasGrants = (clue.grants_words?.length ?? 0) > 0 || (clue.grants_flags?.length ?? 0) > 0;
+  const hasActivePrompts = prompts.some((p) => !p.completed);
 
   return (
     <div className="animate-fade-in">
       {/* Clue content */}
       <div className="border border-gold/25 bg-surface p-8 mb-6">
-        <p className="text-gold text-xs tracking-[0.45em] uppercase mb-4">
-          — Classified —
-        </p>
-        <h2 className="text-3xl text-cream mb-5">{clue.title}</h2>
+        <div className="flex items-start justify-between gap-4 mb-5">
+          <h2 className="text-3xl text-cream">{clue.title}</h2>
+          <button
+            onClick={onBack}
+            className="text-muted text-xs tracking-widest uppercase hover:text-gold transition-colors shrink-0 mt-1.5"
+          >
+            ← Return
+          </button>
+        </div>
         <div className="h-px bg-gold/25 mb-6" />
         <p className="text-cream leading-relaxed whitespace-pre-wrap text-lg">
           {highlightText(clue.content, highlightTerms)}
@@ -125,9 +126,7 @@ export default function PageView({ clue, onBack }: PageViewProps) {
           </p>
           {clue.grants_words && clue.grants_words.length > 0 && (
             <div className="mb-3">
-              <p className="text-muted text-xs uppercase tracking-wide mb-2">
-                Clues
-              </p>
+              <p className="text-muted text-xs uppercase tracking-wide mb-2">Clues</p>
               <div className="flex flex-wrap gap-2">
                 {clue.grants_words.map((w) => (
                   <span
@@ -142,9 +141,7 @@ export default function PageView({ clue, onBack }: PageViewProps) {
           )}
           {clue.grants_flags && clue.grants_flags.length > 0 && (
             <div>
-              <p className="text-muted text-xs uppercase tracking-wide mb-2">
-                Flags
-              </p>
+              <p className="text-muted text-xs uppercase tracking-wide mb-2">Flags</p>
               <div className="flex flex-wrap gap-2">
                 {clue.grants_flags.map((f) => (
                   <span
@@ -179,33 +176,42 @@ export default function PageView({ clue, onBack }: PageViewProps) {
         </div>
       )}
 
-      {/* Footer nav */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={onBack}
-          className="text-muted text-xs tracking-widest uppercase hover:text-gold transition-colors"
-        >
-          ← Return
-        </button>
+      {/* Inline clue inventory — only shown when there are active prompts to fill */}
+      {hasActivePrompts && inventory.length > 0 && (
+        <div className="border border-gold/20 bg-surface-3 p-5 mb-6">
+          <p className="text-gold text-xs tracking-[0.35em] uppercase mb-3">
+            — Your Clues —
+          </p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {inventory.map((word) => {
+              const placed = placedWords.has(word);
+              const selected = selectedWord === word;
+              return (
+                <button
+                  key={word}
+                  onClick={() => !placed && handleSelectWord(word)}
+                  disabled={placed}
+                  className={`px-3 py-1.5 text-xs tracking-widest uppercase font-mono border transition-all ${
+                    placed
+                      ? "border-gold/15 text-muted/40 cursor-default"
+                      : selected
+                      ? "border-gold bg-gold text-ink"
+                      : "border-gold/40 text-cream hover:border-gold hover:text-gold"
+                  }`}
+                >
+                  {word}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-muted/60 text-xs">
+            {selectedWord
+              ? `"${selectedWord}" selected — tap a gap to place it`
+              : "Tap a clue to select it, then tap a gap above"}
+          </p>
+        </div>
+      )}
 
-        {inventory.length > 0 && (
-          <button
-            onClick={() => setInventoryOpen(true)}
-            className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
-          >
-            Clues ({inventory.length})
-          </button>
-        )}
-      </div>
-
-      <InventoryPanel
-        words={inventory}
-        placedWords={placedWords}
-        selectedWord={selectedWord}
-        onSelectWord={handleSelectWord}
-        open={inventoryOpen}
-        onClose={() => setInventoryOpen(false)}
-      />
     </div>
   );
 }

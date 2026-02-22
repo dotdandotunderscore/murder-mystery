@@ -128,7 +128,10 @@ function AppInner() {
       </header>
 
       {/* Main */}
-      <main className="max-w-2xl mx-auto px-6 pt-10 pb-[max(4rem,env(safe-area-inset-bottom))]">
+      <main
+        className="max-w-2xl mx-auto px-6 pt-10"
+        style={{ paddingBottom: "max(5rem, env(safe-area-inset-bottom, 0px))" }}
+      >
         {/* Code entry — only on home */}
         {currentPage !== "admin" && currentPage !== "clue" && (
           <div className="text-center mb-12">
