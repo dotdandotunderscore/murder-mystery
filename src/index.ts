@@ -148,8 +148,14 @@ server = Bun.serve({
         if (page.required_flags && page.required_flags.length > 0) {
           const playerFlags = await getPlayerFlags(player.id);
           const playerFlagsLower = playerFlags.map((f) => f.toLowerCase());
-          const hasAll = page.required_flags.every((f) => playerFlagsLower.includes(f.toLowerCase()));
-          if (!hasAll) return json({ error: "You're missing a prerequisite" }, 403);
+          const missingHints = page.required_flags
+            .map((f, i) => ({ missing: !playerFlagsLower.includes(f.toLowerCase()), hint: page.required_flags_hints?.[i] ?? "" }))
+            .filter((x) => x.missing && x.hint)
+            .map((x) => x.hint);
+          const allPresent = page.required_flags.every((f) => playerFlagsLower.includes(f.toLowerCase()));
+          if (!allPresent) {
+            return json({ error: "You're missing a prerequisite", hints: missingHints.length > 0 ? missingHints : undefined }, 403);
+          }
         }
 
         // Grant flags and words

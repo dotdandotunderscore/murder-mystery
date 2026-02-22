@@ -25,6 +25,14 @@ function pgIntArray(arr: number[] | null | undefined): string | null {
   return "{" + arr.join(",") + "}";
 }
 
+// Normalise hint text: trim but preserve empty strings (positional),
+// return null only when no hints are non-empty.
+function normalizeHints(arr: string[] | null | undefined): string[] | null {
+  if (!arr || arr.length === 0) return null;
+  const trimmed = arr.map((s) => s.trim());
+  return trimmed.some(Boolean) ? trimmed : null;
+}
+
 // --- Types ---
 
 export interface Player {
@@ -52,6 +60,7 @@ export interface Page {
   visible_to_teams: string[] | null;
   visible_to_players: number[] | null;
   required_flags: string[] | null;
+  required_flags_hints: string[] | null;
   grants_flags: string[] | null;
   grants_words: string[] | null;
   removes_flags: string[] | null;
@@ -156,6 +165,7 @@ export async function initializeDatabase() {
   `;
 
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS grants_words TEXT[]`;
+  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS required_flags_hints TEXT[]`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS removes_flags TEXT[]`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS removes_words TEXT[]`;
 
@@ -320,6 +330,7 @@ export async function createPage(data: {
   visible_to_teams?: string[] | null;
   visible_to_players?: number[] | null;
   required_flags?: string[] | null;
+  required_flags_hints?: string[] | null;
   grants_flags?: string[] | null;
   grants_words?: string[] | null;
   removes_flags?: string[] | null;
@@ -330,7 +341,8 @@ export async function createPage(data: {
     INSERT INTO pages (
       code_phrase, title, content, page_type,
       visible_to_teams, visible_to_players,
-      required_flags, grants_flags, grants_words,
+      required_flags, required_flags_hints,
+      grants_flags, grants_words,
       removes_flags, removes_words, sort_order
     )
     VALUES (
@@ -341,6 +353,7 @@ export async function createPage(data: {
       ${pgTextArray(normalizeLower(data.visible_to_teams))},
       ${pgIntArray(data.visible_to_players)},
       ${pgTextArray(normalizeLower(data.required_flags))},
+      ${pgTextArray(normalizeHints(data.required_flags_hints))},
       ${pgTextArray(normalizeLower(data.grants_flags))},
       ${pgTextArray(normalizeUpper(data.grants_words))},
       ${pgTextArray(normalizeLower(data.removes_flags))},
@@ -362,6 +375,7 @@ export async function updatePage(
     visible_to_teams?: string[] | null;
     visible_to_players?: number[] | null;
     required_flags?: string[] | null;
+    required_flags_hints?: string[] | null;
     grants_flags?: string[] | null;
     grants_words?: string[] | null;
     removes_flags?: string[] | null;
@@ -378,6 +392,7 @@ export async function updatePage(
       visible_to_teams = ${pgTextArray(normalizeLower(data.visible_to_teams))},
       visible_to_players = ${pgIntArray(data.visible_to_players)},
       required_flags = ${pgTextArray(normalizeLower(data.required_flags))},
+      required_flags_hints = ${pgTextArray(normalizeHints(data.required_flags_hints))},
       grants_flags = ${pgTextArray(normalizeLower(data.grants_flags))},
       grants_words = ${pgTextArray(normalizeUpper(data.grants_words))},
       removes_flags = ${pgTextArray(normalizeLower(data.removes_flags))},

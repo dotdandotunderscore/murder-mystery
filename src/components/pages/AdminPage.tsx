@@ -20,6 +20,7 @@ interface Page {
   visible_to_teams: string[] | null;
   visible_to_players: number[] | null;
   required_flags: string[] | null;
+  required_flags_hints: string[] | null;
   grants_flags: string[] | null;
   grants_words: string[] | null;
   removes_flags: string[] | null;
@@ -456,6 +457,78 @@ function TagInput({
   );
 }
 
+// ── Required Flags Editor ──────────────────────────────────────────────────────
+
+function RequiredFlagsEditor({
+  flags,
+  hints,
+  onChange,
+  flagSuggestions = [],
+}: {
+  flags: string[];
+  hints: string[];
+  onChange: (flags: string[], hints: string[]) => void;
+  flagSuggestions?: string[];
+}) {
+  const id = useId();
+  const listId = flagSuggestions.length > 0 ? `reqflags-${id}` : undefined;
+  const rows = flags.map((f, i) => ({ flag: f, hint: hints[i] ?? "" }));
+
+  const update = (i: number, key: "flag" | "hint", val: string) => {
+    const next = rows.map((r, j) => (j === i ? { ...r, [key]: val } : r));
+    onChange(next.map((r) => r.flag), next.map((r) => r.hint));
+  };
+  const remove = (i: number) => {
+    const next = rows.filter((_, j) => j !== i);
+    onChange(next.map((r) => r.flag), next.map((r) => r.hint));
+  };
+  const add = () => onChange([...flags, ""], [...hints, ""]);
+
+  return (
+    <div className="space-y-2">
+      {listId && (
+        <datalist id={listId}>
+          {flagSuggestions.map((s) => <option key={s} value={s} />)}
+        </datalist>
+      )}
+      {rows.map((row, i) => (
+        <div key={i} className="flex gap-2">
+          <input
+            className={`w-5/12 shrink-0 ${fieldCls}`}
+            value={row.flag}
+            onChange={(e) => update(i, "flag", e.target.value)}
+            placeholder="e.g. found the body"
+            list={listId}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+          <input
+            className={`flex-1 min-w-0 ${fieldCls}`}
+            value={row.hint}
+            onChange={(e) => update(i, "hint", e.target.value)}
+            placeholder="Hint shown if missing (optional)"
+          />
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="text-muted hover:text-danger transition-colors text-xl leading-none px-1 shrink-0"
+          >
+            −
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={add}
+        className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
+      >
+        + Add
+      </button>
+    </div>
+  );
+}
+
 // ── Pages Panel ─────────────────────────────────────────────────────────────────
 
 const defaultPageForm = {
@@ -466,6 +539,7 @@ const defaultPageForm = {
   visible_to_teams: [] as string[],
   visible_to_players: [] as string[],
   required_flags: [] as string[],
+  required_flags_hints: [] as string[],
   grants_flags: [] as string[],
   grants_words: [] as string[],
   removes_flags: [] as string[],
@@ -524,6 +598,7 @@ function PagesPanel() {
       visible_to_teams: c.visible_to_teams ?? [],
       visible_to_players: (c.visible_to_players ?? []).map(playerName),
       required_flags: c.required_flags ?? [],
+      required_flags_hints: c.required_flags_hints ?? [],
       grants_flags: c.grants_flags ?? [],
       grants_words: c.grants_words ?? [],
       removes_flags: c.removes_flags ?? [],
@@ -537,6 +612,16 @@ function PagesPanel() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    // Build required_flags + hints together to keep the parallel arrays in sync
+    const flagHintPairs = form.required_flags
+      .map((f, i) => ({ flag: f.trim().toLowerCase(), hint: (form.required_flags_hints[i] ?? "").trim() }))
+      .filter((p) => p.flag);
+    const required_flags = flagHintPairs.length > 0 ? flagHintPairs.map((p) => p.flag) : null;
+    const required_flags_hints =
+      flagHintPairs.length > 0 && flagHintPairs.some((p) => p.hint)
+        ? flagHintPairs.map((p) => p.hint)
+        : null;
+
     const body = {
       code_phrase: form.code_phrase.trim().toLowerCase(),
       title: form.title.trim(),
@@ -544,7 +629,8 @@ function PagesPanel() {
       page_type: form.page_type,
       visible_to_teams: toArr(form.visible_to_teams),
       visible_to_players: toArr(form.visible_to_players)?.map(playerId) ?? null,
-      required_flags: toArr(form.required_flags),
+      required_flags,
+      required_flags_hints,
       grants_flags: toArr(form.grants_flags),
       grants_words: toArr(form.grants_words),
       removes_flags: toArr(form.removes_flags),
@@ -740,12 +826,12 @@ function PagesPanel() {
               suggestions={suggestions.players.map((p) => p.name)}
             />
           </Field>
-          <Field label="Required Flags" hint="Player must have all of these to unlock">
-            <TagInput
-              values={form.required_flags}
-              onChange={(v) => set("required_flags", v)}
-              placeholder="e.g. found the body"
-              suggestions={suggestions.flags}
+          <Field label="Required Flags" hint="Player must have all of these to unlock — add a hint to guide them if they're missing one">
+            <RequiredFlagsEditor
+              flags={form.required_flags}
+              hints={form.required_flags_hints}
+              onChange={(flags, hints) => setForm((f) => ({ ...f, required_flags: flags, required_flags_hints: hints }))}
+              flagSuggestions={suggestions.flags}
             />
           </Field>
           <Field label="Grants Flags" hint="Awarded when this page is unlocked">

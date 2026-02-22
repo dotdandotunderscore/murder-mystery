@@ -22,6 +22,7 @@ function AppInner() {
   const [currentPage, setCurrentPage] = useState<string | null>(null);
   const [clue, setClue] = useState<ClueResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [hints, setHints] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   if (loading) {
@@ -40,6 +41,7 @@ function AppInner() {
     if (!codeInput.trim()) return;
     setSubmitting(true);
     setError(null);
+    setHints([]);
     try {
       const res = await fetch("/api/pages/unlock", {
         method: "POST",
@@ -52,6 +54,7 @@ function AppInner() {
         setCurrentPage("clue");
       } else {
         setError(data.error ?? "Invalid code");
+        setHints(data.hints ?? []);
       }
     } catch {
       setError("Something went wrong");
@@ -65,6 +68,7 @@ function AppInner() {
     setClue(null);
     setCodeInput("");
     setError(null);
+    setHints([]);
   };
 
   const renderPage = () => {
@@ -154,6 +158,9 @@ function AppInner() {
             {error && (
               <p className="text-danger text-sm mt-3">{error}</p>
             )}
+            {hints.map((h, i) => (
+              <p key={i} className="text-muted text-sm mt-1 italic">{h}</p>
+            ))}
           </div>
         )}
 
