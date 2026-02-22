@@ -286,6 +286,15 @@ server = Bun.serve({
       },
     },
 
+    "/api/flags": {
+      GET: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
+        const flags = await getPlayerFlags(player.id);
+        return json(flags);
+      },
+    },
+
     // --- Prompts ---
 
     "/api/pages/:id/prompts": {

@@ -2,9 +2,9 @@ import React, { useState } from "react";
 import { usePlayer } from "../context/PlayerContext";
 import { TradeProvider, useTradeContext } from "../context/TradeContext";
 import LoginPage from "./pages/LoginPage";
-import AdminPage from "./pages/adminPage";
-import HomePage from "./pages/homePage";
-import CluePage from "./pages/CluePage";
+import AdminPage from "./pages/AdminPage";
+import HomePage from "./pages/HomePage";
+import PageView from "./pages/PageView";
 import TradePanel from "./TradePanel";
 import TradeOfferModal from "./TradeOfferModal";
 
@@ -71,7 +71,7 @@ function AppInner() {
     if (currentPage === "admin" && player.is_admin) return <AdminPage />;
 
     if (currentPage === "clue" && clue) {
-      return <CluePage clue={clue} onBack={handleBack} />;
+      return <PageView clue={clue} onBack={handleBack} />;
     }
 
     return <HomePage />;

@@ -5,21 +5,48 @@ import { toast } from "sonner";
 
 function InventorySummary() {
   const { inventory, setPanelOpen, setOfferWord } = useTradeContext();
-  if (inventory.length === 0) return null;
+  const [flags, setFlags] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch("/api/flags").then((r) => r.ok ? r.json() : []).then(setFlags);
+  }, []);
+
+  if (inventory.length === 0 && flags.length === 0) return null;
+
   return (
-    <div className="border-b border-gold/20 px-6 py-4">
-      <p className="text-gold text-xs tracking-[0.35em] uppercase mb-2">Your Clues</p>
-      <div className="flex flex-wrap gap-1.5">
-        {inventory.map((w) => (
-          <button
-            key={w}
-            onClick={() => { setPanelOpen(false); setOfferWord(w); }}
-            className="border border-gold/30 text-cream font-mono text-xs px-2 py-0.5 hover:border-gold hover:text-gold transition-colors"
-          >
-            {w}
-          </button>
-        ))}
-      </div>
+    <div className="border-b border-gold/20 px-6 py-4 space-y-4">
+      {inventory.length > 0 && (
+        <div>
+          <p className="text-gold text-xs tracking-[0.35em] uppercase mb-1">Your Clues</p>
+          <p className="text-muted text-xs mb-2">Tap a clue to offer it in a trade</p>
+          <div className="flex flex-wrap gap-1.5">
+            {inventory.map((w) => (
+              <button
+                key={w}
+                onClick={() => { setPanelOpen(false); setOfferWord(w); }}
+                className="border border-gold/30 text-cream font-mono text-xs px-2 py-0.5 hover:border-gold hover:text-gold transition-colors"
+              >
+                {w}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {flags.length > 0 && (
+        <div>
+          <p className="text-gold text-xs tracking-[0.35em] uppercase mb-2">Your Flags</p>
+          <div className="flex flex-wrap gap-1.5">
+            {flags.map((f) => (
+              <span
+                key={f}
+                className="border border-gold/20 text-muted text-xs px-2 py-0.5 tracking-wide"
+              >
+                {f}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -243,7 +270,7 @@ export default function TradePanel() {
       />
       <div className="fixed top-0 right-0 bottom-0 w-full max-w-sm bg-surface-3 border-l border-gold/20 z-10 flex flex-col animate-fade-in overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gold/20 shrink-0">
-          <h3 className="text-xl text-cream">Trades</h3>
+          <h3 className="text-xl text-cream">Clues</h3>
           <button
             onClick={() => setPanelOpen(false)}
             className="text-muted hover:text-cream transition-colors text-2xl leading-none pb-0.5"

@@ -129,9 +129,6 @@ export async function initializeDatabase() {
     )
   `;
 
-  // Migration: rename clues table to pages
-  await sql`ALTER TABLE IF EXISTS clues RENAME TO pages`;
-
   await sql`
     CREATE TABLE IF NOT EXISTS pages (
       id SERIAL PRIMARY KEY,
@@ -170,16 +167,6 @@ export async function initializeDatabase() {
       granted_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(player_id, word)
     )
-  `;
-
-  // Migration: rename clue_id → page_id in prompts
-  await sql`
-    DO $$
-    BEGIN
-      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='prompts' AND column_name='clue_id') THEN
-        ALTER TABLE prompts RENAME COLUMN clue_id TO page_id;
-      END IF;
-    END $$
   `;
 
   await sql`

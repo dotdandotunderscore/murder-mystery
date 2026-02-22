@@ -21,7 +21,7 @@ interface Prompt {
   completed: boolean;
 }
 
-interface CluePageProps {
+interface PageViewProps {
   clue: ClueResult;
   onBack: () => void;
 }
@@ -30,7 +30,7 @@ function parseTemplate(template: string): string[] {
   return template.split("_____");
 }
 
-export default function CluePage({ clue, onBack }: CluePageProps) {
+export default function PageView({ clue, onBack }: PageViewProps) {
   const { inventory, refreshInventory } = useTradeContext();
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [prompts, setPrompts] = useState<Prompt[]>([]);

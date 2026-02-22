@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useId } from "react";
+import React, { useState, useEffect, useId, useRef } from "react";
 import { toast } from "sonner";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -926,13 +926,96 @@ function ProgressPanel() {
   );
 }
 
+// ── Template editor helpers ─────────────────────────────────────────────────────
+
+// Convert stored template + answers back to the [WORD] rich format for editing
+function toRichTemplate(template: string, answers: string[]): string {
+  let i = 0;
+  return template.replace(/_____/g, () => `[${answers[i++] ?? ""}]`);
+}
+
+// Parse [WORD] rich format into the stored template + answer array
+function fromRichTemplate(rich: string): { template: string; answer: string[] } {
+  const answer: string[] = [];
+  const template = rich.replace(/\[([^\]]*)\]/g, (_, w) => {
+    answer.push(w.trim().toUpperCase());
+    return "_____";
+  });
+  return { template, answer };
+}
+
+function TemplateEditor({
+  value,
+  onChange,
+  wordSuggestions,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  wordSuggestions: string[];
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const insertWord = (word: string) => {
+    const el = inputRef.current;
+    const insertion = `[${word}]`;
+    if (!el) { onChange(value + insertion); return; }
+    const start = el.selectionStart ?? value.length;
+    const end = el.selectionEnd ?? start;
+    const next = value.slice(0, start) + insertion + value.slice(end);
+    onChange(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + insertion.length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
+  const gaps = [...value.matchAll(/\[([^\]]*)\]/g)]
+    .map((m) => m[1].trim().toUpperCase())
+    .filter(Boolean);
+
+  return (
+    <div className="space-y-2">
+      <input
+        ref={inputRef}
+        className={inputCls}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="e.g. The [CANDLESTICK] was found in the [LIBRARY]."
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+      />
+      {wordSuggestions.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {wordSuggestions.map((w) => (
+            <button
+              key={w}
+              type="button"
+              onClick={() => insertWord(w)}
+              className="border border-gold/25 text-muted font-mono text-xs px-2 py-0.5 hover:border-gold hover:text-gold transition-colors"
+            >
+              {w}
+            </button>
+          ))}
+        </div>
+      )}
+      {gaps.length > 0 && (
+        <p className="text-muted text-xs">
+          {gaps.length} gap{gaps.length !== 1 ? "s" : ""}:{" "}
+          <span className="text-cream font-mono">{gaps.join(" → ")}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Prompts Panel ──────────────────────────────────────────────────────────────
 
 const defaultPromptForm = {
   page_id: "" as string | number,
   question: "",
-  template: "",
-  answer: [] as string[],
+  rich_template: "",
   grants_flags: [] as string[],
   grants_words: [] as string[],
   removes_flags: [] as string[],
@@ -986,8 +1069,7 @@ function PromptsPanel() {
     setForm({
       page_id: p.page_id,
       question: p.question,
-      template: p.template,
-      answer: p.answer ?? [],
+      rich_template: toRichTemplate(p.template, p.answer ?? []),
       grants_flags: p.grants_flags ?? [],
       grants_words: p.grants_words ?? [],
       removes_flags: p.removes_flags ?? [],
@@ -1003,11 +1085,12 @@ function PromptsPanel() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    const { template, answer } = fromRichTemplate(form.rich_template.trim());
     const body = {
       page_id: Number(form.page_id),
       question: form.question.trim(),
-      template: form.template.trim(),
-      answer: (form.answer as string[]).filter(Boolean),
+      template,
+      answer,
       grants_flags: toArr(form.grants_flags as string[]),
       grants_words: toArr(form.grants_words as string[]),
       removes_flags: toArr(form.removes_flags as string[]),
@@ -1124,21 +1207,11 @@ function PromptsPanel() {
               required
             />
           </Field>
-          <Field label="Template" hint="Use _____ (5 underscores) for each gap">
-            <input
-              className={inputCls}
-              value={form.template}
-              onChange={(e) => set("template", e.target.value)}
-              placeholder="Found at _____ in the _____."
-              required
-            />
-          </Field>
-          <Field label="Answer" hint="One word per gap, in order">
-            <TagInput
-              values={form.answer as string[]}
-              onChange={(v) => set("answer", v)}
-              placeholder="e.g. LIBRARY"
-              suggestions={suggestions.words}
+          <Field label="Template" hint="Use [WORD] to mark each gap — click a word below to insert">
+            <TemplateEditor
+              value={form.rich_template}
+              onChange={(v) => set("rich_template", v)}
+              wordSuggestions={suggestions.words}
             />
           </Field>
           <Field label="Success Text" hint="Optional — shown to the player after a correct answer">
