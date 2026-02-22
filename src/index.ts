@@ -380,6 +380,45 @@ server = Bun.serve({
       },
     },
 
+    // --- Admin: Suggestions (autocomplete values) ---
+
+    "/api/admin/suggestions": {
+      GET: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+
+        const [clues, prompts, players] = await Promise.all([
+          getAllClues(),
+          getAllPrompts(),
+          getAllPlayers(),
+        ]);
+
+        const flags = new Set<string>();
+        const words = new Set<string>();
+        const teams = new Set<string>();
+
+        for (const c of clues) {
+          c.required_flags?.forEach((f) => flags.add(f));
+          c.grants_flags?.forEach((f) => flags.add(f));
+          c.grants_words?.forEach((w) => words.add(w));
+        }
+        for (const p of prompts) {
+          p.grants_flags?.forEach((f) => flags.add(f));
+          p.grants_words?.forEach((w) => words.add(w));
+        }
+        for (const p of players) {
+          if (p.team) teams.add(p.team);
+        }
+
+        return json({
+          flags: [...flags].sort(),
+          words: [...words].sort(),
+          teams: [...teams].sort(),
+          players: players.map((p) => ({ id: p.id, name: p.name })),
+        });
+      },
+    },
+
     // --- Admin: Progress ---
 
     "/api/admin/progress": {

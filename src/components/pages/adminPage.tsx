@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useId } from "react";
 import { toast } from "sonner";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -144,8 +144,9 @@ function Field({
   );
 }
 
-const inputCls =
-  "w-full bg-ink border border-gold/30 text-cream px-4 py-2.5 text-sm focus:outline-none focus:border-gold transition-colors";
+const fieldCls =
+  "bg-ink border border-gold/30 text-cream px-4 py-2.5 text-sm focus:outline-none focus:border-gold transition-colors";
+const inputCls = `w-full ${fieldCls}`;
 
 const saveBtnCls =
   "w-full bg-gold text-ink py-3 text-xs tracking-widest uppercase font-semibold hover:bg-gold-light transition-colors disabled:opacity-50 mt-1";
@@ -383,52 +384,127 @@ function PlayersPanel() {
   );
 }
 
-// ── Clues Panel ────────────────────────────────────────────────────────────────
+// ── Shared helpers ─────────────────────────────────────────────────────────────
 
-const defaultClueForm = {
+// Filter blank entries; return null when empty (DB expects null not [])
+function toArr(arr: string[]): string[] | null {
+  const filtered = arr.filter(Boolean);
+  return filtered.length > 0 ? filtered : null;
+}
+
+function TagInput({
+  values,
+  onChange,
+  placeholder,
+  suggestions = [],
+}: {
+  values: string[];
+  onChange: (v: string[]) => void;
+  placeholder?: string;
+  suggestions?: string[];
+}) {
+  const id = useId();
+  const listId = suggestions.length > 0 ? `taginput-${id}` : undefined;
+
+  const update = (i: number, val: string) => {
+    const next = [...values];
+    next[i] = val;
+    onChange(next);
+  };
+  const remove = (i: number) => onChange(values.filter((_, j) => j !== i));
+  const add = () => onChange([...values, ""]);
+  return (
+    <div className="space-y-2">
+      {listId && (
+        <datalist id={listId}>
+          {suggestions.map((s) => <option key={s} value={s} />)}
+        </datalist>
+      )}
+      {values.map((v, i) => (
+        <div key={i} className="flex gap-2">
+          <input
+            className={`flex-1 min-w-0 ${fieldCls}`}
+            value={v}
+            onChange={(e) => update(i, e.target.value)}
+            placeholder={placeholder}
+            list={listId}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="text-muted hover:text-danger transition-colors text-xl leading-none px-1 shrink-0"
+          >
+            −
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={add}
+        className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
+      >
+        + Add
+      </button>
+    </div>
+  );
+}
+
+// ── Pages Panel ─────────────────────────────────────────────────────────────────
+
+const defaultPageForm = {
   code_phrase: "",
   title: "",
   content: "",
   page_type: "text",
-  sort_order: 0,
-  visible_to_teams: "",
-  visible_to_players: "",
-  required_flags: "",
-  grants_flags: "",
-  grants_words: "",
+  visible_to_teams: [] as string[],
+  visible_to_players: [] as string[],
+  required_flags: [] as string[],
+  grants_flags: [] as string[],
+  grants_words: [] as string[],
 };
 
-function csvToArray(v: string): string[] | null {
-  const trimmed = v.trim();
-  if (!trimmed) return null;
-  return trimmed.split(",").map((s) => s.trim()).filter(Boolean);
-}
+type Suggestions = {
+  flags: string[];
+  words: string[];
+  teams: string[];
+  players: { id: number; name: string }[];
+};
+const emptySuggestions: Suggestions = { flags: [], words: [], teams: [], players: [] };
 
-function arrayToCsv(arr: string[] | number[] | null): string {
-  return arr?.join(", ") ?? "";
-}
-
-function CluesPanel() {
+function PagesPanel() {
   const [clues, setClues] = useState<Clue[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestions>(emptySuggestions);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Clue | null>(null);
-  const [form, setForm] = useState(defaultClueForm);
+  const [form, setForm] = useState(defaultPageForm);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/clues");
-    if (res.ok) setClues(await res.json());
+    const [cluesRes, suggRes] = await Promise.all([
+      fetch("/api/admin/clues"),
+      fetch("/api/admin/suggestions"),
+    ]);
+    if (cluesRes.ok) setClues(await cluesRes.json());
+    if (suggRes.ok) setSuggestions(await suggRes.json());
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
 
+  const playerName = (id: number) =>
+    suggestions.players.find((p) => p.id === id)?.name ?? String(id);
+  const playerId = (name: string) =>
+    suggestions.players.find((p) => p.name === name)?.id ?? Number(name);
+
   const openCreate = () => {
     setEditing(null);
-    setForm(defaultClueForm);
+    setForm(defaultPageForm);
     setModalOpen(true);
   };
 
@@ -439,12 +515,11 @@ function CluesPanel() {
       title: c.title,
       content: c.content,
       page_type: c.page_type,
-      sort_order: c.sort_order,
-      visible_to_teams: arrayToCsv(c.visible_to_teams),
-      visible_to_players: arrayToCsv(c.visible_to_players),
-      required_flags: arrayToCsv(c.required_flags),
-      grants_flags: arrayToCsv(c.grants_flags),
-      grants_words: arrayToCsv(c.grants_words),
+      visible_to_teams: c.visible_to_teams ?? [],
+      visible_to_players: (c.visible_to_players ?? []).map(playerName),
+      required_flags: c.required_flags ?? [],
+      grants_flags: c.grants_flags ?? [],
+      grants_words: c.grants_words ?? [],
     });
     setModalOpen(true);
   };
@@ -459,13 +534,11 @@ function CluesPanel() {
       title: form.title.trim(),
       content: form.content,
       page_type: form.page_type,
-      sort_order: form.sort_order,
-      visible_to_teams: csvToArray(form.visible_to_teams),
-      visible_to_players:
-        csvToArray(form.visible_to_players)?.map(Number) ?? null,
-      required_flags: csvToArray(form.required_flags),
-      grants_flags: csvToArray(form.grants_flags),
-      grants_words: csvToArray(form.grants_words),
+      visible_to_teams: toArr(form.visible_to_teams),
+      visible_to_players: toArr(form.visible_to_players)?.map(playerId) ?? null,
+      required_flags: toArr(form.required_flags),
+      grants_flags: toArr(form.grants_flags),
+      grants_words: toArr(form.grants_words),
     };
     const res = editing
       ? await fetch(`/api/admin/clues/${editing.id}`, {
@@ -481,7 +554,7 @@ function CluesPanel() {
     if (res.ok) {
       setModalOpen(false);
       load();
-      toast.success(editing ? "Clue updated" : "Clue created");
+      toast.success(editing ? "Page updated" : "Page created");
     } else {
       toast.error(await getErrorMessage(res));
     }
@@ -492,7 +565,7 @@ function CluesPanel() {
     const res = await fetch(`/api/admin/clues/${id}`, { method: "DELETE" });
     if (res.ok) {
       load();
-      toast.success("Clue deleted");
+      toast.success("Page deleted");
     } else {
       toast.error("Failed to delete");
     }
@@ -503,14 +576,14 @@ function CluesPanel() {
     <>
       <div className="flex items-center justify-between mb-5">
         <span className="text-muted text-xs tracking-widest uppercase">
-          {clues.length} clue{clues.length !== 1 ? "s" : ""}
+          {clues.length} page{clues.length !== 1 ? "s" : ""}
         </span>
         <button
           onClick={openCreate}
           className="bg-gold text-ink px-4 py-2 text-xs tracking-widest uppercase font-semibold hover:bg-gold-light transition-colors"
           style={{ fontFamily: "var(--font-family-display)" }}
         >
-          Add Clue
+          Add Page
         </button>
       </div>
 
@@ -585,7 +658,7 @@ function CluesPanel() {
                     colSpan={4}
                     className="py-10 text-center text-muted text-sm"
                   >
-                    No clues yet. Add one to get started.
+                    No pages yet. Add one to get started.
                   </td>
                 </tr>
               )}
@@ -597,10 +670,10 @@ function CluesPanel() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editing ? "Edit Clue" : "Add Clue"}
+        title={editing ? "Edit Page" : "Add Page"}
       >
         <form onSubmit={handleSave}>
-          <Field label="Code Phrase" hint="What players type in — auto-lowercased">
+          <Field label="Code Phrase" hint="What players type in — stored lowercase">
             <input
               className={inputCls}
               value={form.code_phrase}
@@ -609,6 +682,7 @@ function CluesPanel() {
               required
               autoCapitalize="none"
               autoCorrect="off"
+              spellCheck={false}
             />
           </Field>
           <Field label="Title">
@@ -626,79 +700,58 @@ function CluesPanel() {
               rows={5}
               value={form.content}
               onChange={(e) => set("content", e.target.value)}
-              placeholder="Clue text…"
+              placeholder="Page text…"
             />
           </Field>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Type">
-              <select
-                className={`${inputCls} cursor-pointer`}
-                value={form.page_type}
-                onChange={(e) => set("page_type", e.target.value)}
-              >
-                <option value="text">Text</option>
-                <option value="cipher">Cipher</option>
-                <option value="safecracker">Safecracker</option>
-              </select>
-            </Field>
-            <Field label="Order">
-              <input
-                className={inputCls}
-                type="number"
-                value={form.sort_order}
-                onChange={(e) =>
-                  set("sort_order", parseInt(e.target.value) || 0)
-                }
-              />
-            </Field>
-          </div>
-          <Field
-            label="Visible to Teams"
-            hint="Comma-separated, blank = all teams"
-          >
-            <input
-              className={inputCls}
-              value={form.visible_to_teams}
-              onChange={(e) => set("visible_to_teams", e.target.value)}
-              placeholder="red, blue"
+          <Field label="Type">
+            <select
+              className={`${inputCls} cursor-pointer`}
+              value={form.page_type}
+              onChange={(e) => set("page_type", e.target.value)}
+            >
+              <option value="text">Text</option>
+              <option value="cipher">Cipher</option>
+              <option value="safecracker">Safecracker</option>
+            </select>
+          </Field>
+          <Field label="Visible to Teams" hint="Blank = all teams">
+            <TagInput
+              values={form.visible_to_teams}
+              onChange={(v) => set("visible_to_teams", v)}
+              placeholder="e.g. red"
+              suggestions={suggestions.teams}
             />
           </Field>
-          <Field
-            label="Visible to Player IDs"
-            hint="Comma-separated IDs, blank = all"
-          >
-            <input
-              className={inputCls}
-              value={form.visible_to_players}
-              onChange={(e) => set("visible_to_players", e.target.value)}
-              placeholder="1, 3, 5"
+          <Field label="Visible to Players" hint="Blank = all players">
+            <TagInput
+              values={form.visible_to_players}
+              onChange={(v) => set("visible_to_players", v)}
+              placeholder="Player name"
+              suggestions={suggestions.players.map((p) => p.name)}
             />
           </Field>
-          <Field
-            label="Required Flags"
-            hint="Player must have all these flags first"
-          >
-            <input
-              className={inputCls}
-              value={form.required_flags}
-              onChange={(e) => set("required_flags", e.target.value)}
-              placeholder="found_body, decoded_cipher"
+          <Field label="Required Flags" hint="Player must have all of these to unlock">
+            <TagInput
+              values={form.required_flags}
+              onChange={(v) => set("required_flags", v)}
+              placeholder="e.g. found the body"
+              suggestions={suggestions.flags}
             />
           </Field>
-          <Field label="Grants Flags" hint="Flags awarded when unlocked">
-            <input
-              className={inputCls}
-              value={form.grants_flags}
-              onChange={(e) => set("grants_flags", e.target.value)}
-              placeholder="found_key"
+          <Field label="Grants Flags" hint="Awarded when this page is unlocked">
+            <TagInput
+              values={form.grants_flags}
+              onChange={(v) => set("grants_flags", v)}
+              placeholder="e.g. searched the study"
+              suggestions={suggestions.flags}
             />
           </Field>
-          <Field label="Grants Words" hint="Words added to player inventory when unlocked">
-            <input
-              className={inputCls}
-              value={form.grants_words}
-              onChange={(e) => set("grants_words", e.target.value)}
-              placeholder="CANDLESTICK, LIBRARY"
+          <Field label="Grants Clues" hint="Words added to player inventory when unlocked">
+            <TagInput
+              values={form.grants_words}
+              onChange={(v) => set("grants_words", v)}
+              placeholder="e.g. CANDLESTICK"
+              suggestions={suggestions.words}
             />
           </Field>
           <button
@@ -853,9 +906,9 @@ const defaultPromptForm = {
   clue_id: "" as string | number,
   question: "",
   template: "",
-  answer: "",
-  grants_flags: "",
-  grants_words: "",
+  answer: [] as string[],
+  grants_flags: [] as string[],
+  grants_words: [] as string[],
   success_text: "",
   sort_order: 0,
 };
@@ -863,6 +916,7 @@ const defaultPromptForm = {
 function PromptsPanel() {
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [clues, setClues] = useState<Clue[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestions>(emptySuggestions);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Prompt | null>(null);
@@ -873,12 +927,14 @@ function PromptsPanel() {
   const load = async () => {
     setLoading(true);
     try {
-      const [pr, cl] = await Promise.all([
+      const [pr, cl, sg] = await Promise.all([
         fetch("/api/admin/prompts").then((r) => r.json()),
         fetch("/api/admin/clues").then((r) => r.json()),
+        fetch("/api/admin/suggestions").then((r) => r.json()),
       ]);
       setPrompts(Array.isArray(pr) ? pr : []);
       setClues(Array.isArray(cl) ? cl : []);
+      if (sg && !sg.error) setSuggestions(sg);
       if (!Array.isArray(pr)) toast.error(pr?.error ?? "Failed to load prompts");
     } catch {
       toast.error("Failed to load prompts");
@@ -889,7 +945,7 @@ function PromptsPanel() {
 
   useEffect(() => { load(); }, []);
 
-  const clueTitle = (id: number) => clues.find((c) => c.id === id)?.title ?? `Clue #${id}`;
+  const clueTitle = (id: number) => clues.find((c) => c.id === id)?.title ?? `Page #${id}`;
 
   const openCreate = () => {
     setEditing(null);
@@ -903,9 +959,9 @@ function PromptsPanel() {
       clue_id: p.clue_id,
       question: p.question,
       template: p.template,
-      answer: p.answer.join(", "),
-      grants_flags: arrayToCsv(p.grants_flags),
-      grants_words: arrayToCsv(p.grants_words),
+      answer: p.answer ?? [],
+      grants_flags: p.grants_flags ?? [],
+      grants_words: p.grants_words ?? [],
       success_text: p.success_text ?? "",
       sort_order: p.sort_order,
     });
@@ -921,9 +977,9 @@ function PromptsPanel() {
       clue_id: Number(form.clue_id),
       question: form.question.trim(),
       template: form.template.trim(),
-      answer: csvToArray(form.answer) ?? [],
-      grants_flags: csvToArray(form.grants_flags),
-      grants_words: csvToArray(form.grants_words),
+      answer: (form.answer as string[]).filter(Boolean),
+      grants_flags: toArr(form.grants_flags as string[]),
+      grants_words: toArr(form.grants_words as string[]),
       success_text: form.success_text.trim() || null,
       sort_order: form.sort_order,
     };
@@ -1015,7 +1071,7 @@ function PromptsPanel() {
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit Prompt" : "Add Prompt"}>
         <form onSubmit={handleSave}>
-          <Field label="Clue">
+          <Field label="Page">
             <select
               className={`${inputCls} cursor-pointer`}
               value={form.clue_id}
@@ -1036,7 +1092,7 @@ function PromptsPanel() {
               required
             />
           </Field>
-          <Field label="Template" hint={`Use _____ (5 underscores) for each gap`}>
+          <Field label="Template" hint="Use _____ (5 underscores) for each gap">
             <input
               className={inputCls}
               value={form.template}
@@ -1045,13 +1101,12 @@ function PromptsPanel() {
               required
             />
           </Field>
-          <Field label="Answer" hint="Comma-separated words in gap order">
-            <input
-              className={inputCls}
-              value={form.answer}
-              onChange={(e) => set("answer", e.target.value)}
-              placeholder="LIBRARY, EVENING"
-              required
+          <Field label="Answer" hint="One word per gap, in order">
+            <TagInput
+              values={form.answer as string[]}
+              onChange={(v) => set("answer", v)}
+              placeholder="e.g. LIBRARY"
+              suggestions={suggestions.words}
             />
           </Field>
           <Field label="Success Text" hint="Optional — shown to the player after a correct answer">
@@ -1064,19 +1119,19 @@ function PromptsPanel() {
             />
           </Field>
           <Field label="Grants Flags" hint="Flags awarded on correct answer">
-            <input
-              className={inputCls}
-              value={form.grants_flags}
-              onChange={(e) => set("grants_flags", e.target.value)}
-              placeholder="solved_room_1"
+            <TagInput
+              values={form.grants_flags as string[]}
+              onChange={(v) => set("grants_flags", v)}
+              placeholder="e.g. solved the cipher"
+              suggestions={suggestions.flags}
             />
           </Field>
-          <Field label="Grants Words" hint="Words added to inventory on correct answer">
-            <input
-              className={inputCls}
-              value={form.grants_words}
-              onChange={(e) => set("grants_words", e.target.value)}
-              placeholder="SECRET PASSAGE"
+          <Field label="Grants Clues" hint="Words added to inventory on correct answer">
+            <TagInput
+              values={form.grants_words as string[]}
+              onChange={(v) => set("grants_words", v)}
+              placeholder="e.g. SECRET PASSAGE"
+              suggestions={suggestions.words}
             />
           </Field>
           <Field label="Order">
@@ -1098,7 +1153,7 @@ function PromptsPanel() {
 
 // ── Admin Page ─────────────────────────────────────────────────────────────────
 
-const TABS = ["players", "clues", "prompts", "progress"] as const;
+const TABS = ["players", "pages", "prompts", "progress"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function AdminPage() {
@@ -1132,7 +1187,7 @@ export default function AdminPage() {
 
       <div className="min-h-[55vh]">
         {activeTab === "players" && <PlayersPanel />}
-        {activeTab === "clues" && <CluesPanel />}
+        {activeTab === "pages" && <PagesPanel />}
         {activeTab === "prompts" && <PromptsPanel />}
         {activeTab === "progress" && <ProgressPanel />}
       </div>
