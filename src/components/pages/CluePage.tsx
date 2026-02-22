@@ -129,7 +129,7 @@ export default function CluePage({ clue, onBack }: CluePageProps) {
             onClick={() => setInventoryOpen(true)}
             className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
           >
-            Evidence ({inventory.length})
+            Clues ({inventory.length})
           </button>
         )}
       </div>

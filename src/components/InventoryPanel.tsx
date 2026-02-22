@@ -46,7 +46,7 @@ export default function InventoryPanel({
               className="text-gold text-xs tracking-[0.4em] uppercase"
               style={{ fontFamily: "var(--font-family-display)" }}
             >
-              Your Evidence
+              Your Clues
             </h3>
             <button
               onClick={onClose}

@@ -25,8 +25,6 @@ interface TradeContextValue {
   players: TradePlayer[];
   inventory: string[];
   refreshInventory: () => void;
-  inventoryOpen: boolean;
-  setInventoryOpen: (open: boolean) => void;
   pendingActionCount: number;
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
@@ -52,7 +50,6 @@ export function TradeProvider({ children }: { children: React.ReactNode }) {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [players, setPlayers] = useState<TradePlayer[]>([]);
   const [inventory, setInventory] = useState<string[]>([]);
-  const [inventoryOpen, setInventoryOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [offerWord, setOfferWord] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -172,8 +169,6 @@ export function TradeProvider({ children }: { children: React.ReactNode }) {
         players,
         inventory,
         refreshInventory,
-        inventoryOpen,
-        setInventoryOpen,
         pendingActionCount,
         panelOpen,
         setPanelOpen,

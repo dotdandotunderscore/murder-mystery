@@ -4,19 +4,11 @@ import { usePlayer } from "../context/PlayerContext";
 import { toast } from "sonner";
 
 function InventorySummary() {
-  const { inventory, setInventoryOpen, setPanelOpen, setOfferWord } = useTradeContext();
+  const { inventory, setPanelOpen, setOfferWord } = useTradeContext();
   if (inventory.length === 0) return null;
   return (
     <div className="border-b border-gold/20 px-6 py-4">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-gold text-xs tracking-[0.35em] uppercase">Your Evidence</p>
-        <button
-          onClick={() => { setPanelOpen(false); setInventoryOpen(true); }}
-          className="text-muted text-xs hover:text-gold transition-colors"
-        >
-          View all
-        </button>
-      </div>
+      <p className="text-gold text-xs tracking-[0.35em] uppercase mb-2">Your Clues</p>
       <div className="flex flex-wrap gap-1.5">
         {inventory.map((w) => (
           <button
