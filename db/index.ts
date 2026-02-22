@@ -4,6 +4,16 @@ import { sql } from "bun";
 // Bun.sql doesn't serialize JS arrays to PostgreSQL array literals automatically.
 // These helpers produce the correct literal format, e.g. {"foo","bar"} or {1,2,3}.
 
+function normalizeLower(arr: string[] | null | undefined): string[] | null {
+  if (!arr || arr.length === 0) return null;
+  return arr.map((s) => s.trim().toLowerCase()).filter(Boolean);
+}
+
+function normalizeUpper(arr: string[] | null | undefined): string[] | null {
+  if (!arr || arr.length === 0) return null;
+  return arr.map((s) => s.trim().toUpperCase()).filter(Boolean);
+}
+
 function pgTextArray(arr: string[] | null | undefined): string | null {
   if (!arr || arr.length === 0) return null;
   const escaped = arr.map((s) => '"' + s.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"');
@@ -256,7 +266,7 @@ export async function createPlayer(
 ): Promise<Player> {
   const [player] = await sql`
     INSERT INTO players (name, pin, team, is_admin)
-    VALUES (${name}, ${pin}, ${team}, ${isAdmin})
+    VALUES (${name}, ${pin}, ${team?.trim().toLowerCase() ?? null}, ${isAdmin})
     RETURNING *
   `;
   return player;
@@ -271,7 +281,7 @@ export async function updatePlayer(
 ): Promise<Player | null> {
   const [player] = await sql`
     UPDATE players
-    SET name = ${name}, pin = ${pin}, team = ${team}, is_admin = ${isAdmin}
+    SET name = ${name}, pin = ${pin}, team = ${team?.trim().toLowerCase() ?? null}, is_admin = ${isAdmin}
     WHERE id = ${id}
     RETURNING *
   `;
@@ -313,15 +323,15 @@ export async function createClue(data: {
       required_flags, grants_flags, grants_words, sort_order
     )
     VALUES (
-      ${data.code_phrase},
+      ${data.code_phrase.trim().toLowerCase()},
       ${data.title},
       ${data.content ?? ""},
       ${data.page_type ?? "text"},
-      ${pgTextArray(data.visible_to_teams)},
+      ${pgTextArray(normalizeLower(data.visible_to_teams))},
       ${pgIntArray(data.visible_to_players)},
-      ${pgTextArray(data.required_flags)},
-      ${pgTextArray(data.grants_flags)},
-      ${pgTextArray(data.grants_words)},
+      ${pgTextArray(normalizeLower(data.required_flags))},
+      ${pgTextArray(normalizeLower(data.grants_flags))},
+      ${pgTextArray(normalizeUpper(data.grants_words))},
       ${data.sort_order ?? 0}
     )
     RETURNING *
@@ -346,15 +356,15 @@ export async function updateClue(
 ): Promise<Clue | null> {
   const [clue] = await sql`
     UPDATE clues SET
-      code_phrase = ${data.code_phrase},
+      code_phrase = ${data.code_phrase.trim().toLowerCase()},
       title = ${data.title},
       content = ${data.content ?? ""},
       page_type = ${data.page_type ?? "text"},
-      visible_to_teams = ${pgTextArray(data.visible_to_teams)},
+      visible_to_teams = ${pgTextArray(normalizeLower(data.visible_to_teams))},
       visible_to_players = ${pgIntArray(data.visible_to_players)},
-      required_flags = ${pgTextArray(data.required_flags)},
-      grants_flags = ${pgTextArray(data.grants_flags)},
-      grants_words = ${pgTextArray(data.grants_words)},
+      required_flags = ${pgTextArray(normalizeLower(data.required_flags))},
+      grants_flags = ${pgTextArray(normalizeLower(data.grants_flags))},
+      grants_words = ${pgTextArray(normalizeUpper(data.grants_words))},
       sort_order = ${data.sort_order ?? 0}
     WHERE id = ${id}
     RETURNING *
@@ -380,7 +390,7 @@ export async function grantPlayerFlags(playerId: number, flags: string[]): Promi
   for (const flag of flags) {
     await sql`
       INSERT INTO player_flags (player_id, flag)
-      VALUES (${playerId}, ${flag})
+      VALUES (${playerId}, ${flag.trim().toLowerCase()})
       ON CONFLICT (player_id, flag) DO NOTHING
     `;
   }
@@ -423,7 +433,7 @@ export async function grantPlayerWords(playerId: number, words: string[]): Promi
   for (const word of words) {
     await sql`
       INSERT INTO player_words (player_id, word)
-      VALUES (${playerId}, ${word})
+      VALUES (${playerId}, ${word.trim().toUpperCase()})
       ON CONFLICT (player_id, word) DO NOTHING
     `;
   }
@@ -475,9 +485,9 @@ export async function createPrompt(data: {
       ${data.clue_id},
       ${data.question},
       ${data.template},
-      ${pgTextArray(data.answer)},
-      ${pgTextArray(data.grants_flags)},
-      ${pgTextArray(data.grants_words)},
+      ${pgTextArray(normalizeUpper(data.answer))},
+      ${pgTextArray(normalizeLower(data.grants_flags))},
+      ${pgTextArray(normalizeUpper(data.grants_words))},
       ${data.success_text ?? null},
       ${data.sort_order ?? 0}
     )
@@ -504,9 +514,9 @@ export async function updatePrompt(
       clue_id = ${data.clue_id},
       question = ${data.question},
       template = ${data.template},
-      answer = ${pgTextArray(data.answer)},
-      grants_flags = ${pgTextArray(data.grants_flags)},
-      grants_words = ${pgTextArray(data.grants_words)},
+      answer = ${pgTextArray(normalizeUpper(data.answer))},
+      grants_flags = ${pgTextArray(normalizeLower(data.grants_flags))},
+      grants_words = ${pgTextArray(normalizeUpper(data.grants_words))},
       success_text = ${data.success_text ?? null},
       sort_order = ${data.sort_order ?? 0}
     WHERE id = ${id}

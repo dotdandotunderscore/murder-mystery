@@ -129,7 +129,8 @@ server = Bun.serve({
 
         // Team access check
         if (clue.visible_to_teams && clue.visible_to_teams.length > 0) {
-          if (!player.team || !clue.visible_to_teams.includes(player.team)) {
+          const playerTeam = player.team?.toLowerCase() ?? "";
+          if (!playerTeam || !clue.visible_to_teams.map((t) => t.toLowerCase()).includes(playerTeam)) {
             return json({ error: "Access denied" }, 403);
           }
         }
@@ -144,7 +145,8 @@ server = Bun.serve({
         // Required flags check
         if (clue.required_flags && clue.required_flags.length > 0) {
           const playerFlags = await getPlayerFlags(player.id);
-          const hasAll = clue.required_flags.every((f) => playerFlags.includes(f));
+          const playerFlagsLower = playerFlags.map((f) => f.toLowerCase());
+          const hasAll = clue.required_flags.every((f) => playerFlagsLower.includes(f.toLowerCase()));
           if (!hasAll) return json({ error: "You're missing a prerequisite" }, 403);
         }
 
