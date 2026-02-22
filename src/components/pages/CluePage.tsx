@@ -12,7 +12,7 @@ interface ClueResult {
 
 interface Prompt {
   id: number;
-  clue_id: number;
+  page_id: number;
   question: string;
   template: string;
   grants_flags: string[] | null;
@@ -42,7 +42,7 @@ export default function CluePage({ clue, onBack }: CluePageProps) {
   const [placements, setPlacements] = useState<Record<number, (string | null)[]>>({});
 
   useEffect(() => {
-    fetch(`/api/clues/${clue.id}/prompts`)
+    fetch(`/api/pages/${clue.id}/prompts`)
       .then((r) => r.json())
       .then((data: Prompt[]) => {
         setPrompts(data);

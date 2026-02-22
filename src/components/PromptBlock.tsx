@@ -2,7 +2,7 @@ import React, { useState } from "react";
 
 interface Prompt {
   id: number;
-  clue_id: number;
+  page_id: number;
   question: string;
   template: string;
   grants_flags: string[] | null;

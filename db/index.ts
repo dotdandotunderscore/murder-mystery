@@ -43,7 +43,7 @@ export interface Session {
   created_at: Date;
 }
 
-export interface Clue {
+export interface Page {
   id: number;
   code_phrase: string;
   title: string;
@@ -76,7 +76,7 @@ export interface PlayerWord {
 
 export interface Prompt {
   id: number;
-  clue_id: number;
+  page_id: number;
   question: string;
   template: string;
   answer: string[];
@@ -129,8 +129,11 @@ export async function initializeDatabase() {
     )
   `;
 
+  // Migration: rename clues table to pages
+  await sql`ALTER TABLE IF EXISTS clues RENAME TO pages`;
+
   await sql`
-    CREATE TABLE IF NOT EXISTS clues (
+    CREATE TABLE IF NOT EXISTS pages (
       id SERIAL PRIMARY KEY,
       code_phrase TEXT UNIQUE NOT NULL,
       title TEXT NOT NULL,
@@ -155,9 +158,9 @@ export async function initializeDatabase() {
     )
   `;
 
-  await sql`ALTER TABLE clues ADD COLUMN IF NOT EXISTS grants_words TEXT[]`;
-  await sql`ALTER TABLE clues ADD COLUMN IF NOT EXISTS removes_flags TEXT[]`;
-  await sql`ALTER TABLE clues ADD COLUMN IF NOT EXISTS removes_words TEXT[]`;
+  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS grants_words TEXT[]`;
+  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS removes_flags TEXT[]`;
+  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS removes_words TEXT[]`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS player_words (
@@ -169,10 +172,20 @@ export async function initializeDatabase() {
     )
   `;
 
+  // Migration: rename clue_id → page_id in prompts
+  await sql`
+    DO $$
+    BEGIN
+      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='prompts' AND column_name='clue_id') THEN
+        ALTER TABLE prompts RENAME COLUMN clue_id TO page_id;
+      END IF;
+    END $$
+  `;
+
   await sql`
     CREATE TABLE IF NOT EXISTS prompts (
       id SERIAL PRIMARY KEY,
-      clue_id INT REFERENCES clues(id) ON DELETE CASCADE,
+      page_id INT REFERENCES pages(id) ON DELETE CASCADE,
       question TEXT NOT NULL,
       template TEXT NOT NULL,
       answer TEXT[] NOT NULL,
@@ -301,18 +314,18 @@ export async function deletePlayer(id: number): Promise<boolean> {
   return result.length > 0;
 }
 
-// --- Clue functions ---
+// --- Page functions ---
 
-export async function getAllClues(): Promise<Clue[]> {
-  return await sql`SELECT * FROM clues ORDER BY sort_order, created_at`;
+export async function getAllPages(): Promise<Page[]> {
+  return await sql`SELECT * FROM pages ORDER BY sort_order, created_at`;
 }
 
-export async function getClueByCode(codePhrase: string): Promise<Clue | null> {
-  const rows = await sql`SELECT * FROM clues WHERE code_phrase = ${codePhrase}`;
+export async function getPageByCode(codePhrase: string): Promise<Page | null> {
+  const rows = await sql`SELECT * FROM pages WHERE code_phrase = ${codePhrase}`;
   return rows[0] ?? null;
 }
 
-export async function createClue(data: {
+export async function createPage(data: {
   code_phrase: string;
   title: string;
   content?: string;
@@ -325,9 +338,9 @@ export async function createClue(data: {
   removes_flags?: string[] | null;
   removes_words?: string[] | null;
   sort_order?: number;
-}): Promise<Clue> {
-  const [clue] = await sql`
-    INSERT INTO clues (
+}): Promise<Page> {
+  const [page] = await sql`
+    INSERT INTO pages (
       code_phrase, title, content, page_type,
       visible_to_teams, visible_to_players,
       required_flags, grants_flags, grants_words,
@@ -349,10 +362,10 @@ export async function createClue(data: {
     )
     RETURNING *
   `;
-  return clue;
+  return page;
 }
 
-export async function updateClue(
+export async function updatePage(
   id: number,
   data: {
     code_phrase: string;
@@ -368,9 +381,9 @@ export async function updateClue(
     removes_words?: string[] | null;
     sort_order?: number;
   }
-): Promise<Clue | null> {
-  const [clue] = await sql`
-    UPDATE clues SET
+): Promise<Page | null> {
+  const [page] = await sql`
+    UPDATE pages SET
       code_phrase = ${data.code_phrase.trim().toLowerCase()},
       title = ${data.title},
       content = ${data.content ?? ""},
@@ -386,11 +399,11 @@ export async function updateClue(
     WHERE id = ${id}
     RETURNING *
   `;
-  return clue ?? null;
+  return page ?? null;
 }
 
-export async function deleteClue(id: number): Promise<boolean> {
-  const result = await sql`DELETE FROM clues WHERE id = ${id} RETURNING id`;
+export async function deletePage(id: number): Promise<boolean> {
+  const result = await sql`DELETE FROM pages WHERE id = ${id} RETURNING id`;
   return result.length > 0;
 }
 
@@ -481,20 +494,20 @@ export async function removePlayerWordsByText(playerId: number, words: string[])
 
 // --- Prompt functions ---
 
-export async function getCluePrompts(clueId: number, playerId: number): Promise<PromptWithCompletion[]> {
+export async function getPagePrompts(pageId: number, playerId: number): Promise<PromptWithCompletion[]> {
   const rows = await sql`
     SELECT p.*, (ppc.id IS NOT NULL) AS completed
     FROM prompts p
     LEFT JOIN player_prompt_completions ppc
       ON ppc.prompt_id = p.id AND ppc.player_id = ${playerId}
-    WHERE p.clue_id = ${clueId}
+    WHERE p.page_id = ${pageId}
     ORDER BY p.sort_order, p.created_at
   `;
   return rows.map((r: Prompt & { completed: unknown }) => ({ ...r, completed: Boolean(r.completed) }));
 }
 
 export async function getAllPrompts(): Promise<Prompt[]> {
-  return await sql`SELECT * FROM prompts ORDER BY clue_id, sort_order, created_at`;
+  return await sql`SELECT * FROM prompts ORDER BY page_id, sort_order, created_at`;
 }
 
 export async function getPromptById(id: number): Promise<Prompt | null> {
@@ -503,7 +516,7 @@ export async function getPromptById(id: number): Promise<Prompt | null> {
 }
 
 export async function createPrompt(data: {
-  clue_id: number;
+  page_id: number;
   question: string;
   template: string;
   answer: string[];
@@ -515,9 +528,9 @@ export async function createPrompt(data: {
   sort_order?: number;
 }): Promise<Prompt> {
   const [prompt] = await sql`
-    INSERT INTO prompts (clue_id, question, template, answer, grants_flags, grants_words, removes_flags, removes_words, success_text, sort_order)
+    INSERT INTO prompts (page_id, question, template, answer, grants_flags, grants_words, removes_flags, removes_words, success_text, sort_order)
     VALUES (
-      ${data.clue_id},
+      ${data.page_id},
       ${data.question},
       ${data.template},
       ${pgTextArray(normalizeUpper(data.answer))},
@@ -536,7 +549,7 @@ export async function createPrompt(data: {
 export async function updatePrompt(
   id: number,
   data: {
-    clue_id: number;
+    page_id: number;
     question: string;
     template: string;
     answer: string[];
@@ -550,7 +563,7 @@ export async function updatePrompt(
 ): Promise<Prompt | null> {
   const [prompt] = await sql`
     UPDATE prompts SET
-      clue_id = ${data.clue_id},
+      page_id = ${data.page_id},
       question = ${data.question},
       template = ${data.template},
       answer = ${pgTextArray(normalizeUpper(data.answer))},

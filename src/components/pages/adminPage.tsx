@@ -11,7 +11,7 @@ interface Player {
   created_at: string;
 }
 
-interface Clue {
+interface Page {
   id: number;
   code_phrase: string;
   title: string;
@@ -29,7 +29,7 @@ interface Clue {
 
 interface Prompt {
   id: number;
-  clue_id: number;
+  page_id: number;
   question: string;
   template: string;
   answer: string[];
@@ -481,22 +481,22 @@ type Suggestions = {
 const emptySuggestions: Suggestions = { flags: [], words: [], teams: [], players: [] };
 
 function PagesPanel() {
-  const [clues, setClues] = useState<Clue[]>([]);
+  const [pages, setPages] = useState<Page[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestions>(emptySuggestions);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<Clue | null>(null);
+  const [editing, setEditing] = useState<Page | null>(null);
   const [form, setForm] = useState(defaultPageForm);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
-    const [cluesRes, suggRes] = await Promise.all([
-      fetch("/api/admin/clues"),
+    const [pagesRes, suggRes] = await Promise.all([
+      fetch("/api/admin/pages"),
       fetch("/api/admin/suggestions"),
     ]);
-    if (cluesRes.ok) setClues(await cluesRes.json());
+    if (pagesRes.ok) setPages(await pagesRes.json());
     if (suggRes.ok) setSuggestions(await suggRes.json());
     setLoading(false);
   };
@@ -514,7 +514,7 @@ function PagesPanel() {
     setModalOpen(true);
   };
 
-  const openEdit = (c: Clue) => {
+  const openEdit = (c: Page) => {
     setEditing(c);
     setForm({
       code_phrase: c.code_phrase,
@@ -551,12 +551,12 @@ function PagesPanel() {
       removes_words: toArr(form.removes_words),
     };
     const res = editing
-      ? await fetch(`/api/admin/clues/${editing.id}`, {
+      ? await fetch(`/api/admin/pages/${editing.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         })
-      : await fetch("/api/admin/clues", {
+      : await fetch("/api/admin/pages", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -572,7 +572,7 @@ function PagesPanel() {
   };
 
   const handleDelete = async (id: number) => {
-    const res = await fetch(`/api/admin/clues/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/admin/pages/${id}`, { method: "DELETE" });
     if (res.ok) {
       load();
       toast.success("Page deleted");
@@ -586,7 +586,7 @@ function PagesPanel() {
     <>
       <div className="flex items-center justify-between mb-5">
         <span className="text-muted text-xs tracking-widest uppercase">
-          {clues.length} page{clues.length !== 1 ? "s" : ""}
+          {pages.length} page{pages.length !== 1 ? "s" : ""}
         </span>
         <button
           onClick={openCreate}
@@ -617,7 +617,7 @@ function PagesPanel() {
               </tr>
             </thead>
             <tbody>
-              {clues.map((c) => (
+              {pages.map((c) => (
                 <tr key={c.id} className="border-b border-gold/10">
                   <td className="py-3 pr-4 font-mono text-xs text-gold">
                     {c.code_phrase}
@@ -662,7 +662,7 @@ function PagesPanel() {
                   </td>
                 </tr>
               ))}
-              {clues.length === 0 && (
+              {pages.length === 0 && (
                 <tr>
                   <td
                     colSpan={4}
@@ -929,7 +929,7 @@ function ProgressPanel() {
 // ── Prompts Panel ──────────────────────────────────────────────────────────────
 
 const defaultPromptForm = {
-  clue_id: "" as string | number,
+  page_id: "" as string | number,
   question: "",
   template: "",
   answer: [] as string[],
@@ -943,7 +943,7 @@ const defaultPromptForm = {
 
 function PromptsPanel() {
   const [prompts, setPrompts] = useState<Prompt[]>([]);
-  const [clues, setClues] = useState<Clue[]>([]);
+  const [pages, setPages] = useState<Page[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestions>(emptySuggestions);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -955,13 +955,13 @@ function PromptsPanel() {
   const load = async () => {
     setLoading(true);
     try {
-      const [pr, cl, sg] = await Promise.all([
+      const [pr, pg, sg] = await Promise.all([
         fetch("/api/admin/prompts").then((r) => r.json()),
-        fetch("/api/admin/clues").then((r) => r.json()),
+        fetch("/api/admin/pages").then((r) => r.json()),
         fetch("/api/admin/suggestions").then((r) => r.json()),
       ]);
       setPrompts(Array.isArray(pr) ? pr : []);
-      setClues(Array.isArray(cl) ? cl : []);
+      setPages(Array.isArray(pg) ? pg : []);
       if (sg && !sg.error) setSuggestions(sg);
       if (!Array.isArray(pr)) toast.error(pr?.error ?? "Failed to load prompts");
     } catch {
@@ -973,18 +973,18 @@ function PromptsPanel() {
 
   useEffect(() => { load(); }, []);
 
-  const clueTitle = (id: number) => clues.find((c) => c.id === id)?.title ?? `Page #${id}`;
+  const pageTitle = (id: number) => pages.find((p) => p.id === id)?.title ?? `Page #${id}`;
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ ...defaultPromptForm, clue_id: clues[0]?.id ?? "" });
+    setForm({ ...defaultPromptForm, page_id: pages[0]?.id ?? "" });
     setModalOpen(true);
   };
 
   const openEdit = (p: Prompt) => {
     setEditing(p);
     setForm({
-      clue_id: p.clue_id,
+      page_id: p.page_id,
       question: p.question,
       template: p.template,
       answer: p.answer ?? [],
@@ -1004,7 +1004,7 @@ function PromptsPanel() {
     e.preventDefault();
     setSaving(true);
     const body = {
-      clue_id: Number(form.clue_id),
+      page_id: Number(form.page_id),
       question: form.question.trim(),
       template: form.template.trim(),
       answer: (form.answer as string[]).filter(Boolean),
@@ -1071,7 +1071,7 @@ function PromptsPanel() {
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <p className="text-muted text-xs tracking-wide mb-1">
-                    {clueTitle(p.clue_id)}
+                    {pageTitle(p.page_id)}
                   </p>
                   <p className="text-cream text-sm truncate">{p.question}</p>
                   <p className="text-muted text-xs font-mono mt-1 truncate">
@@ -1106,12 +1106,12 @@ function PromptsPanel() {
           <Field label="Page">
             <select
               className={`${inputCls} cursor-pointer`}
-              value={form.clue_id}
-              onChange={(e) => set("clue_id", e.target.value)}
+              value={form.page_id}
+              onChange={(e) => set("page_id", e.target.value)}
               required
             >
-              {clues.map((c) => (
-                <option key={c.id} value={c.id}>{c.title} ({c.code_phrase})</option>
+              {pages.map((p) => (
+                <option key={p.id} value={p.id}>{p.title} ({p.code_phrase})</option>
               ))}
             </select>
           </Field>

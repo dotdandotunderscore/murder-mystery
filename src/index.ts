@@ -10,11 +10,11 @@ import {
   createPlayer,
   updatePlayer,
   deletePlayer,
-  getAllClues,
-  getClueByCode,
-  createClue,
-  updateClue,
-  deleteClue,
+  getAllPages,
+  getPageByCode,
+  createPage,
+  updatePage,
+  deletePage,
   getPlayerFlags,
   grantPlayerFlags,
   getAllProgress,
@@ -25,7 +25,7 @@ import {
   removePlayerFlags,
   removePlayerWordsByText,
   resetPlayerProgress,
-  getCluePrompts,
+  getPagePrompts,
   getAllPrompts,
   createPrompt,
   updatePrompt,
@@ -117,58 +117,58 @@ server = Bun.serve({
       },
     },
 
-    // --- Clue unlock ---
+    // --- Page unlock ---
 
-    "/api/clues/unlock": {
+    "/api/pages/unlock": {
       POST: async (req) => {
         const player = await getCurrentPlayer(req);
         if (!player) return json({ error: "Unauthorized" }, 401);
 
         const body = (await req.json()) as { code_phrase: string };
         const codePhrase = body.code_phrase?.trim()?.toLowerCase();
-        const clue = await getClueByCode(codePhrase);
-        if (!clue) return json({ error: "Unknown code" }, 404);
+        const page = await getPageByCode(codePhrase);
+        if (!page) return json({ error: "Unknown code" }, 404);
 
         // Team access check
-        if (clue.visible_to_teams && clue.visible_to_teams.length > 0) {
+        if (page.visible_to_teams && page.visible_to_teams.length > 0) {
           const playerTeam = player.team?.toLowerCase() ?? "";
-          if (!playerTeam || !clue.visible_to_teams.map((t) => t.toLowerCase()).includes(playerTeam)) {
+          if (!playerTeam || !page.visible_to_teams.map((t) => t.toLowerCase()).includes(playerTeam)) {
             return json({ error: "Access denied" }, 403);
           }
         }
 
         // Player access check
-        if (clue.visible_to_players && clue.visible_to_players.length > 0) {
-          if (!clue.visible_to_players.includes(player.id)) {
+        if (page.visible_to_players && page.visible_to_players.length > 0) {
+          if (!page.visible_to_players.includes(player.id)) {
             return json({ error: "Access denied" }, 403);
           }
         }
 
         // Required flags check
-        if (clue.required_flags && clue.required_flags.length > 0) {
+        if (page.required_flags && page.required_flags.length > 0) {
           const playerFlags = await getPlayerFlags(player.id);
           const playerFlagsLower = playerFlags.map((f) => f.toLowerCase());
-          const hasAll = clue.required_flags.every((f) => playerFlagsLower.includes(f.toLowerCase()));
+          const hasAll = page.required_flags.every((f) => playerFlagsLower.includes(f.toLowerCase()));
           if (!hasAll) return json({ error: "You're missing a prerequisite" }, 403);
         }
 
         // Grant flags and words
-        if (clue.grants_flags && clue.grants_flags.length > 0) {
-          await grantPlayerFlags(player.id, clue.grants_flags);
+        if (page.grants_flags && page.grants_flags.length > 0) {
+          await grantPlayerFlags(player.id, page.grants_flags);
         }
-        if (clue.grants_words && clue.grants_words.length > 0) {
-          await grantPlayerWords(player.id, clue.grants_words);
+        if (page.grants_words && page.grants_words.length > 0) {
+          await grantPlayerWords(player.id, page.grants_words);
         }
         // Remove flags and words
-        if (clue.removes_flags && clue.removes_flags.length > 0) {
-          await removePlayerFlags(player.id, clue.removes_flags);
+        if (page.removes_flags && page.removes_flags.length > 0) {
+          await removePlayerFlags(player.id, page.removes_flags);
         }
-        if (clue.removes_words && clue.removes_words.length > 0) {
-          await removePlayerWordsByText(player.id, clue.removes_words);
+        if (page.removes_words && page.removes_words.length > 0) {
+          await removePlayerWordsByText(player.id, page.removes_words);
         }
 
-        const { visible_to_teams, visible_to_players, required_flags, grants_flags, grants_words, removes_flags, removes_words, ...clueData } = clue;
-        return json(clueData);
+        const { visible_to_teams, visible_to_players, required_flags, grants_flags, grants_words, removes_flags, removes_words, ...pageData } = page;
+        return json(pageData);
       },
     },
 
@@ -239,38 +239,38 @@ server = Bun.serve({
       },
     },
 
-    // --- Admin: Clues ---
+    // --- Admin: Pages ---
 
-    "/api/admin/clues": {
+    "/api/admin/pages": {
       GET: async (req) => {
         const player = await getCurrentPlayer(req);
         if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
-        return json(await getAllClues());
+        return json(await getAllPages());
       },
       POST: async (req) => {
         const player = await getCurrentPlayer(req);
         if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
         const body = await req.json();
-        const clue = await createClue(body);
-        return json(clue, 201);
+        const page = await createPage(body);
+        return json(page, 201);
       },
     },
 
-    "/api/admin/clues/:id": {
+    "/api/admin/pages/:id": {
       PUT: async (req) => {
         const player = await getCurrentPlayer(req);
         if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
         const id = parseInt(req.params.id);
         const body = await req.json();
-        const clue = await updateClue(id, body);
-        if (!clue) return json({ error: "Not found" }, 404);
-        return json(clue);
+        const page = await updatePage(id, body);
+        if (!page) return json({ error: "Not found" }, 404);
+        return json(page);
       },
       DELETE: async (req) => {
         const player = await getCurrentPlayer(req);
         if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
         const id = parseInt(req.params.id);
-        const ok = await deleteClue(id);
+        const ok = await deletePage(id);
         return json({ ok }, ok ? 200 : 404);
       },
     },
@@ -288,12 +288,12 @@ server = Bun.serve({
 
     // --- Prompts ---
 
-    "/api/clues/:id/prompts": {
+    "/api/pages/:id/prompts": {
       GET: async (req) => {
         const player = await getCurrentPlayer(req);
         if (!player) return json({ error: "Unauthorized" }, 401);
-        const clueId = parseInt(req.params.id);
-        const prompts = await getCluePrompts(clueId, player.id);
+        const pageId = parseInt(req.params.id);
+        const prompts = await getPagePrompts(pageId, player.id);
         // Strip answer from response so players can't cheat via devtools
         return json(prompts.map(({ answer, ...p }) => p));
       },
@@ -396,8 +396,8 @@ server = Bun.serve({
         const player = await getCurrentPlayer(req);
         if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
 
-        const [clues, prompts, players] = await Promise.all([
-          getAllClues(),
+        const [pages, prompts, players] = await Promise.all([
+          getAllPages(),
           getAllPrompts(),
           getAllPlayers(),
         ]);
@@ -406,7 +406,7 @@ server = Bun.serve({
         const words = new Set<string>();
         const teams = new Set<string>();
 
-        for (const c of clues) {
+        for (const c of pages) {
           c.required_flags?.forEach((f) => flags.add(f));
           c.grants_flags?.forEach((f) => flags.add(f));
           c.grants_words?.forEach((w) => words.add(w));
