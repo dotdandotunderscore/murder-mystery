@@ -85,41 +85,61 @@ export function TradeProvider({ children }: { children: React.ReactNode }) {
     refreshInventory();
     refreshFlags();
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws`);
-    wsRef.current = ws;
+    let dead = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
-    ws.onmessage = (e) => {
-      const msg = JSON.parse(e.data) as
-        | { type: "trade_update"; trade: Trade }
-        | { type: "trade_removed"; tradeId: number }
-        | { type: "player_updated" };
+    function connect() {
+      if (dead) return;
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws`);
+      wsRef.current = ws;
 
-      if (msg.type === "trade_update") {
-        setTrades((prev) => {
-          const idx = prev.findIndex((t) => t.id === msg.trade.id);
-          if (idx >= 0) {
-            const next = [...prev];
-            next[idx] = msg.trade;
-            return next;
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data) as
+          | { type: "trade_update"; trade: Trade }
+          | { type: "trade_removed"; tradeId: number }
+          | { type: "player_updated" };
+
+        if (msg.type === "trade_update") {
+          setTrades((prev) => {
+            const idx = prev.findIndex((t) => t.id === msg.trade.id);
+            if (idx >= 0) {
+              const next = [...prev];
+              next[idx] = msg.trade;
+              return next;
+            }
+            return [msg.trade, ...prev];
+          });
+          if (msg.trade.status === "accepted") {
+            refreshInventory();
           }
-          return [msg.trade, ...prev];
-        });
-        if (msg.trade.status === "accepted") {
+        } else if (msg.type === "trade_removed") {
+          setTrades((prev) => prev.filter((t) => t.id !== msg.tradeId));
+        } else if (msg.type === "player_updated") {
           refreshInventory();
+          refreshFlags();
         }
-      } else if (msg.type === "trade_removed") {
-        setTrades((prev) => prev.filter((t) => t.id !== msg.tradeId));
-      } else if (msg.type === "player_updated") {
-        refreshInventory();
-        refreshFlags();
-      }
+      };
+
+      ws.onerror = () => {};
+      ws.onclose = () => {
+        wsRef.current = null;
+        if (!dead) {
+          // Re-fetch trades in case we missed pushes while disconnected,
+          // then reconnect after a short delay.
+          fetchTrades();
+          retryTimer = setTimeout(connect, 3000);
+        }
+      };
+    }
+
+    connect();
+
+    return () => {
+      dead = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      wsRef.current?.close();
     };
-
-    ws.onerror = () => { wsRef.current = null; };
-    ws.onclose = () => { wsRef.current = null; };
-
-    return () => { ws.close(); };
   }, [player?.id]);
 
   const pendingActionCount = trades.filter((t) => {

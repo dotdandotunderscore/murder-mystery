@@ -130,7 +130,7 @@ function AppInner() {
       {/* Main */}
       <main
         className="max-w-2xl mx-auto px-6 pt-10"
-        style={{ paddingBottom: "max(5rem, env(safe-area-inset-bottom, 0px))" }}
+        style={{ paddingBottom: "max(2.5rem, env(safe-area-inset-bottom, 0px))" }}
       >
         {/* Code entry — only on home */}
         {currentPage !== "admin" && currentPage !== "clue" && (

@@ -103,19 +103,19 @@ export default function PageView({ clue, onBack }: PageViewProps) {
     <div className="animate-fade-in">
       {/* Clue content */}
       <div className="border border-gold/25 bg-surface p-8 mb-6">
-        <div className="flex items-start justify-between gap-4 mb-5">
-          <h2 className="text-3xl text-cream">{clue.title}</h2>
-          <button
-            onClick={onBack}
-            className="text-muted text-xs tracking-widest uppercase hover:text-gold transition-colors shrink-0 mt-1.5"
-          >
-            ← Return
-          </button>
-        </div>
+        <h2 className="text-3xl text-cream mb-5">{clue.title}</h2>
         <div className="h-px bg-gold/25 mb-6" />
         <p className="text-cream leading-relaxed whitespace-pre-wrap text-lg">
           {highlightText(clue.content, highlightTerms)}
         </p>
+        <div className="flex justify-end mt-6">
+          <button
+            onClick={onBack}
+            className="text-muted text-xs tracking-widest uppercase hover:text-gold transition-colors"
+          >
+            ← Return
+          </button>
+        </div>
       </div>
 
       {/* Grants panel */}
