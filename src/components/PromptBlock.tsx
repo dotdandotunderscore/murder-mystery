@@ -7,6 +7,7 @@ interface Prompt {
   template: string;
   grants_flags: string[] | null;
   grants_words: string[] | null;
+  success_text: string | null;
   sort_order: number;
   completed: boolean;
 }
@@ -35,7 +36,7 @@ export default function PromptBlock({
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(prompt.completed);
   const [wrong, setWrong] = useState(false);
-  const [reward, setReward] = useState<{ flags?: string[]; words?: string[] } | null>(null);
+  const [reward, setReward] = useState<{ flags?: string[]; words?: string[]; successText?: string } | null>(null);
 
   const segments = parseTemplate(prompt.template);
   const gapCount = segments.length - 1;
@@ -54,8 +55,8 @@ export default function PromptBlock({
       const data = await res.json();
       if (data.correct) {
         setCompleted(true);
-        const hasReward = data.grants_flags?.length || data.grants_words?.length;
-        if (hasReward) setReward({ flags: data.grants_flags, words: data.grants_words });
+        const hasReward = data.grants_flags?.length || data.grants_words?.length || data.success_text;
+        if (hasReward) setReward({ flags: data.grants_flags, words: data.grants_words, successText: data.success_text });
         onCorrect?.();
       } else {
         setWrong(true);
@@ -86,14 +87,19 @@ export default function PromptBlock({
             </React.Fragment>
           ))}
         </div>
-        {reward && (
+        {(prompt.success_text || reward) && (
           <div className="mt-3 pt-3 border-t border-gold/20">
-            {reward.words && reward.words.length > 0 && (
+            {(reward?.successText || prompt.success_text) && (
+              <p className="text-cream text-sm mb-2">
+                {reward?.successText ?? prompt.success_text}
+              </p>
+            )}
+            {reward?.words && reward.words.length > 0 && (
               <p className="text-gold text-xs tracking-wide mb-1">
                 New words: {reward.words.map((w) => `"${w}"`).join(", ")}
               </p>
             )}
-            {reward.flags && reward.flags.length > 0 && (
+            {reward?.flags && reward.flags.length > 0 && (
               <p className="text-muted text-xs">
                 Flags earned: {reward.flags.join(", ")}
               </p>

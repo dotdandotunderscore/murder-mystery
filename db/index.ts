@@ -70,6 +70,7 @@ export interface Prompt {
   answer: string[];
   grants_flags: string[] | null;
   grants_words: string[] | null;
+  success_text: string | null;
   sort_order: number;
   created_at: Date;
 }
@@ -161,10 +162,13 @@ export async function initializeDatabase() {
       answer TEXT[] NOT NULL,
       grants_flags TEXT[],
       grants_words TEXT[],
+      success_text TEXT,
       sort_order INT DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `;
+
+  await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS success_text TEXT`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS player_prompt_completions (
@@ -462,10 +466,11 @@ export async function createPrompt(data: {
   answer: string[];
   grants_flags?: string[] | null;
   grants_words?: string[] | null;
+  success_text?: string | null;
   sort_order?: number;
 }): Promise<Prompt> {
   const [prompt] = await sql`
-    INSERT INTO prompts (clue_id, question, template, answer, grants_flags, grants_words, sort_order)
+    INSERT INTO prompts (clue_id, question, template, answer, grants_flags, grants_words, success_text, sort_order)
     VALUES (
       ${data.clue_id},
       ${data.question},
@@ -473,6 +478,7 @@ export async function createPrompt(data: {
       ${pgTextArray(data.answer)},
       ${pgTextArray(data.grants_flags)},
       ${pgTextArray(data.grants_words)},
+      ${data.success_text ?? null},
       ${data.sort_order ?? 0}
     )
     RETURNING *
@@ -489,6 +495,7 @@ export async function updatePrompt(
     answer: string[];
     grants_flags?: string[] | null;
     grants_words?: string[] | null;
+    success_text?: string | null;
     sort_order?: number;
   }
 ): Promise<Prompt | null> {
@@ -500,6 +507,7 @@ export async function updatePrompt(
       answer = ${pgTextArray(data.answer)},
       grants_flags = ${pgTextArray(data.grants_flags)},
       grants_words = ${pgTextArray(data.grants_words)},
+      success_text = ${data.success_text ?? null},
       sort_order = ${data.sort_order ?? 0}
     WHERE id = ${id}
     RETURNING *
@@ -621,14 +629,14 @@ export async function submitPromptAnswer(
   promptId: number,
   playerId: number,
   words: string[]
-): Promise<{ correct: boolean; grants_flags?: string[]; grants_words?: string[] }> {
+): Promise<{ correct: boolean; grants_flags?: string[]; grants_words?: string[]; success_text?: string }> {
   const prompt = await getPromptById(promptId);
   if (!prompt) return { correct: false };
 
   const normalize = (s: string) => s.trim().toUpperCase();
   const correct =
     prompt.answer.length === words.length &&
-    prompt.answer.every((a, i) => normalize(a) === normalize(words[i]));
+    prompt.answer.every((a, i) => normalize(a) === normalize(words[i] ?? ""));
 
   if (!correct) return { correct: false };
 
@@ -649,5 +657,6 @@ export async function submitPromptAnswer(
     correct: true,
     grants_flags: prompt.grants_flags ?? undefined,
     grants_words: prompt.grants_words ?? undefined,
+    success_text: prompt.success_text ?? undefined,
   };
 }

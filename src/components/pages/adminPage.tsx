@@ -33,6 +33,7 @@ interface Prompt {
   answer: string[];
   grants_flags: string[] | null;
   grants_words: string[] | null;
+  success_text: string | null;
   sort_order: number;
 }
 
@@ -855,6 +856,7 @@ const defaultPromptForm = {
   answer: "",
   grants_flags: "",
   grants_words: "",
+  success_text: "",
   sort_order: 0,
 };
 
@@ -875,8 +877,9 @@ function PromptsPanel() {
         fetch("/api/admin/prompts").then((r) => r.json()),
         fetch("/api/admin/clues").then((r) => r.json()),
       ]);
-      setPrompts(pr);
-      setClues(cl);
+      setPrompts(Array.isArray(pr) ? pr : []);
+      setClues(Array.isArray(cl) ? cl : []);
+      if (!Array.isArray(pr)) toast.error(pr?.error ?? "Failed to load prompts");
     } catch {
       toast.error("Failed to load prompts");
     } finally {
@@ -903,6 +906,7 @@ function PromptsPanel() {
       answer: p.answer.join(", "),
       grants_flags: arrayToCsv(p.grants_flags),
       grants_words: arrayToCsv(p.grants_words),
+      success_text: p.success_text ?? "",
       sort_order: p.sort_order,
     });
     setModalOpen(true);
@@ -920,6 +924,7 @@ function PromptsPanel() {
       answer: csvToArray(form.answer) ?? [],
       grants_flags: csvToArray(form.grants_flags),
       grants_words: csvToArray(form.grants_words),
+      success_text: form.success_text.trim() || null,
       sort_order: form.sort_order,
     };
     const res = editing
@@ -1047,6 +1052,15 @@ function PromptsPanel() {
               onChange={(e) => set("answer", e.target.value)}
               placeholder="LIBRARY, EVENING"
               required
+            />
+          </Field>
+          <Field label="Success Text" hint="Optional — shown to the player after a correct answer">
+            <textarea
+              className={`${inputCls} resize-none`}
+              rows={3}
+              value={form.success_text}
+              onChange={(e) => set("success_text", e.target.value)}
+              placeholder="Well done! You've uncovered…"
             />
           </Field>
           <Field label="Grants Flags" hint="Flags awarded on correct answer">
