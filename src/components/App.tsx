@@ -128,7 +128,7 @@ function AppInner() {
       </header>
 
       {/* Main */}
-      <main className="max-w-2xl mx-auto px-6 py-10">
+      <main className="max-w-2xl mx-auto px-6 pt-10 pb-[max(4rem,env(safe-area-inset-bottom))]">
         {/* Code entry — only on home */}
         {currentPage !== "admin" && currentPage !== "clue" && (
           <div className="text-center mb-12">

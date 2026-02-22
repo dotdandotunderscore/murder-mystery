@@ -1,11 +1,21 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useTradeContext } from "../context/TradeContext";
 import { toast } from "sonner";
+
+type PlayerWithWordStatus = { id: number; name: string; team: string | null; has_word: boolean };
 
 export default function TradeOfferModal() {
   const { offerWord, setOfferWord, players, createOffer, setPanelOpen } = useTradeContext();
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
+  const [enrichedPlayers, setEnrichedPlayers] = useState<PlayerWithWordStatus[]>([]);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!offerWord) { setEnrichedPlayers([]); return; }
+    fetch(`/api/players?word=${encodeURIComponent(offerWord)}`)
+      .then((r) => r.ok ? r.json() : players.map((p) => ({ ...p, has_word: false })))
+      .then(setEnrichedPlayers);
+  }, [offerWord]);
 
   if (!offerWord) return null;
 
@@ -61,16 +71,19 @@ export default function TradeOfferModal() {
 
               <div className="mb-6">
                 <p className="text-gold text-xs tracking-widest uppercase mb-3">Trade with</p>
-                {players.length === 0 ? (
+                {enrichedPlayers.length === 0 ? (
                   <p className="text-muted text-sm italic">No other players found</p>
                 ) : (
                   <div className="space-y-2">
-                    {players.map((p) => (
+                    {enrichedPlayers.map((p) => (
                       <button
                         key={p.id}
-                        onClick={() => setSelectedPlayerId(p.id)}
+                        disabled={p.has_word}
+                        onClick={() => !p.has_word && setSelectedPlayerId(p.id)}
                         className={`w-full text-left px-4 py-3 border transition-colors ${
-                          selectedPlayerId === p.id
+                          p.has_word
+                            ? "border-gold/10 text-muted cursor-not-allowed opacity-50"
+                            : selectedPlayerId === p.id
                             ? "border-gold bg-gold/10 text-gold"
                             : "border-gold/20 text-cream hover:border-gold/40"
                         }`}
@@ -78,6 +91,9 @@ export default function TradeOfferModal() {
                         <span className="text-sm">{p.name}</span>
                         {p.team && (
                           <span className="text-muted text-xs ml-2">({p.team})</span>
+                        )}
+                        {p.has_word && (
+                          <span className="text-muted text-xs ml-2 italic">already has this</span>
                         )}
                       </button>
                     ))}

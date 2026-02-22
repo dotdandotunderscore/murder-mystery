@@ -24,7 +24,9 @@ interface TradeContextValue {
   trades: Trade[];
   players: TradePlayer[];
   inventory: string[];
+  flags: string[];
   refreshInventory: () => void;
+  refreshFlags: () => void;
   pendingActionCount: number;
   panelOpen: boolean;
   setPanelOpen: (open: boolean) => void;
@@ -50,6 +52,7 @@ export function TradeProvider({ children }: { children: React.ReactNode }) {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [players, setPlayers] = useState<TradePlayer[]>([]);
   const [inventory, setInventory] = useState<string[]>([]);
+  const [flags, setFlags] = useState<string[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
   const [offerWord, setOfferWord] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -69,12 +72,18 @@ export function TradeProvider({ children }: { children: React.ReactNode }) {
     if (res.ok) setInventory(await res.json());
   }, []);
 
+  const refreshFlags = useCallback(async () => {
+    const res = await fetch("/api/flags");
+    if (res.ok) setFlags(await res.json());
+  }, []);
+
   useEffect(() => {
     if (!player) return;
 
     fetchTrades();
     fetchPlayers();
     refreshInventory();
+    refreshFlags();
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws`);
@@ -83,7 +92,8 @@ export function TradeProvider({ children }: { children: React.ReactNode }) {
     ws.onmessage = (e) => {
       const msg = JSON.parse(e.data) as
         | { type: "trade_update"; trade: Trade }
-        | { type: "trade_removed"; tradeId: number };
+        | { type: "trade_removed"; tradeId: number }
+        | { type: "player_updated" };
 
       if (msg.type === "trade_update") {
         setTrades((prev) => {
@@ -95,8 +105,14 @@ export function TradeProvider({ children }: { children: React.ReactNode }) {
           }
           return [msg.trade, ...prev];
         });
+        if (msg.trade.status === "accepted") {
+          refreshInventory();
+        }
       } else if (msg.type === "trade_removed") {
         setTrades((prev) => prev.filter((t) => t.id !== msg.tradeId));
+      } else if (msg.type === "player_updated") {
+        refreshInventory();
+        refreshFlags();
       }
     };
 
@@ -168,7 +184,9 @@ export function TradeProvider({ children }: { children: React.ReactNode }) {
         trades,
         players,
         inventory,
+        flags,
         refreshInventory,
+        refreshFlags,
         pendingActionCount,
         panelOpen,
         setPanelOpen,

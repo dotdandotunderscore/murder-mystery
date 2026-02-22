@@ -33,6 +33,7 @@ import {
   submitPromptAnswer,
   getTradeById,
   getPlayerActiveTrades,
+  getPlayersWithWordStatus,
   createTrade,
   counterTrade,
   acceptTrade,
@@ -334,6 +335,7 @@ server = Bun.serve({
         if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
         const id = parseInt(req.params.id);
         await resetPlayerProgress(id);
+        pushToPlayer(id, { type: "player_updated" });
         return json({ ok: true });
       },
     },
@@ -353,6 +355,7 @@ server = Bun.serve({
         const body = (await req.json()) as { words: string[] };
         if (!Array.isArray(body.words)) return json({ error: "Bad request" }, 400);
         await grantPlayerWords(id, body.words);
+        pushToPlayer(id, { type: "player_updated" });
         return json({ ok: true });
       },
     },
@@ -364,6 +367,7 @@ server = Bun.serve({
         const id = parseInt(req.params.id);
         const wordId = parseInt(req.params.wordId);
         const ok = await removePlayerWord(id, wordId);
+        if (ok) pushToPlayer(id, { type: "player_updated" });
         return json({ ok }, ok ? 200 : 404);
       },
     },
@@ -472,12 +476,28 @@ server = Bun.serve({
       GET: async (req) => {
         const player = await getCurrentPlayer(req);
         if (!player) return json({ error: "Unauthorized" }, 401);
+        const word = new URL(req.url).searchParams.get("word");
+        if (word) {
+          return json(await getPlayersWithWordStatus(player.id, word));
+        }
         const all = await getAllPlayers();
         return json(
           all
             .filter((p) => p.id !== player.id)
             .map((p) => ({ id: p.id, name: p.name, team: p.team }))
         );
+      },
+    },
+
+    // --- Player inventory (public, for trade validation) ---
+
+    "/api/players/:id/inventory": {
+      GET: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
+        const id = parseInt(req.params.id);
+        const words = await getPlayerWords(id);
+        return json(words);
       },
     },
 
@@ -495,6 +515,10 @@ server = Bun.serve({
         const body = (await req.json()) as { word: string; recipient_id: number };
         if (!body.word || !body.recipient_id) return json({ error: "Bad request" }, 400);
         if (body.recipient_id === player.id) return json({ error: "Cannot trade with yourself" }, 400);
+        const recipientWords = await getPlayerWords(body.recipient_id);
+        if (recipientWords.includes(body.word.trim().toUpperCase())) {
+          return json({ error: "That player already has this clue" }, 400);
+        }
         const trade = await createTrade(player.id, body.word, body.recipient_id);
         if (!trade) return json({ error: "Word not in your inventory" }, 400);
         pushToPlayer(body.recipient_id, { type: "trade_update", trade });
@@ -508,6 +532,13 @@ server = Bun.serve({
         if (!player) return json({ error: "Unauthorized" }, 401);
         const id = parseInt(req.params.id);
         const body = (await req.json()) as { word: string };
+        const pendingTrade = await getTradeById(id);
+        if (pendingTrade) {
+          const initiatorWords = await getPlayerWords(pendingTrade.initiator_id);
+          if (initiatorWords.includes(body.word.trim().toUpperCase())) {
+            return json({ error: "That player already has this clue" }, 400);
+          }
+        }
         const trade = await counterTrade(id, player.id, body.word);
         if (!trade) return json({ error: "Cannot counter this trade" }, 400);
         pushToPlayer(trade.initiator_id, { type: "trade_update", trade });

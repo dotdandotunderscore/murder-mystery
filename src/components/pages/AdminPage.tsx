@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useId, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -397,6 +397,69 @@ function toArr(arr: string[]): string[] | null {
   return filtered.length > 0 ? filtered : null;
 }
 
+function AutocompleteInput({
+  value,
+  onChange,
+  suggestions = [],
+  className,
+  placeholder,
+  autoCapitalize,
+  autoCorrect,
+  spellCheck,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  suggestions?: string[];
+  className?: string;
+  placeholder?: string;
+  autoCapitalize?: string;
+  autoCorrect?: string;
+  spellCheck?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const filtered = (
+    value
+      ? suggestions.filter(
+          (s) =>
+            s.toLowerCase().includes(value.toLowerCase()) &&
+            s.toLowerCase() !== value.toLowerCase()
+        )
+      : suggestions
+  ).slice(0, 8);
+
+  return (
+    <div className={`relative ${className ?? ""}`}>
+      <input
+        className={`w-full ${fieldCls}`}
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
+        placeholder={placeholder}
+        autoCapitalize={autoCapitalize}
+        autoCorrect={autoCorrect}
+        spellCheck={spellCheck}
+      />
+      {open && filtered.length > 0 && (
+        <ul className="absolute top-full left-0 right-0 z-50 bg-surface-3 border border-gold/30 border-t-0 max-h-40 overflow-y-auto">
+          {filtered.map((s) => (
+            <li key={s}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => { onChange(s); setOpen(false); }}
+                className="w-full text-left px-4 py-2 text-sm text-cream hover:bg-gold/10 active:bg-gold/20 transition-colors"
+              >
+                {s}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function TagInput({
   values,
   onChange,
@@ -408,9 +471,6 @@ function TagInput({
   placeholder?: string;
   suggestions?: string[];
 }) {
-  const id = useId();
-  const listId = suggestions.length > 0 ? `taginput-${id}` : undefined;
-
   const update = (i: number, val: string) => {
     const next = [...values];
     next[i] = val;
@@ -420,19 +480,14 @@ function TagInput({
   const add = () => onChange([...values, ""]);
   return (
     <div className="space-y-2">
-      {listId && (
-        <datalist id={listId}>
-          {suggestions.map((s) => <option key={s} value={s} />)}
-        </datalist>
-      )}
       {values.map((v, i) => (
         <div key={i} className="flex gap-2">
-          <input
-            className={`flex-1 min-w-0 ${fieldCls}`}
+          <AutocompleteInput
+            className="flex-1 min-w-0"
             value={v}
-            onChange={(e) => update(i, e.target.value)}
+            onChange={(val) => update(i, val)}
             placeholder={placeholder}
-            list={listId}
+            suggestions={suggestions}
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
@@ -470,8 +525,6 @@ function RequiredFlagsEditor({
   onChange: (flags: string[], hints: string[]) => void;
   flagSuggestions?: string[];
 }) {
-  const id = useId();
-  const listId = flagSuggestions.length > 0 ? `reqflags-${id}` : undefined;
   const rows = flags.map((f, i) => ({ flag: f, hint: hints[i] ?? "" }));
 
   const update = (i: number, key: "flag" | "hint", val: string) => {
@@ -486,19 +539,14 @@ function RequiredFlagsEditor({
 
   return (
     <div className="space-y-2">
-      {listId && (
-        <datalist id={listId}>
-          {flagSuggestions.map((s) => <option key={s} value={s} />)}
-        </datalist>
-      )}
       {rows.map((row, i) => (
         <div key={i} className="flex gap-2">
-          <input
-            className={`w-5/12 shrink-0 ${fieldCls}`}
+          <AutocompleteInput
+            className="w-5/12 shrink-0"
             value={row.flag}
-            onChange={(e) => update(i, "flag", e.target.value)}
+            onChange={(val) => update(i, "flag", val)}
             placeholder="e.g. found the body"
-            list={listId}
+            suggestions={flagSuggestions}
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}

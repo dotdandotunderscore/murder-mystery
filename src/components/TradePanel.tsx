@@ -4,12 +4,7 @@ import { usePlayer } from "../context/PlayerContext";
 import { toast } from "sonner";
 
 function InventorySummary() {
-  const { inventory, setPanelOpen, setOfferWord } = useTradeContext();
-  const [flags, setFlags] = useState<string[]>([]);
-
-  useEffect(() => {
-    fetch("/api/flags").then((r) => r.ok ? r.json() : []).then(setFlags);
-  }, []);
+  const { inventory, flags, setPanelOpen, setOfferWord } = useTradeContext();
 
   if (inventory.length === 0 && flags.length === 0) return null;
 
@@ -56,10 +51,18 @@ function TradeCard({ trade }: { trade: Trade }) {
   const { counterOffer, acceptOffer, cancelOffer, inventory } = useTradeContext();
   const [counterWord, setCounterWord] = useState<string | null>(null);
   const [showCounter, setShowCounter] = useState(false);
+  const [initiatorWords, setInitiatorWords] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
   const isInitiator = player?.id === trade.initiator_id;
   const isRecipient = player?.id === trade.recipient_id;
+
+  const openCounter = () => {
+    fetch(`/api/players/${trade.initiator_id}/inventory`)
+      .then((r) => r.ok ? r.json() : [])
+      .then(setInitiatorWords);
+    setShowCounter(true);
+  };
 
   const handleCounter = async () => {
     if (!counterWord) return;
@@ -69,6 +72,7 @@ function TradeCard({ trade }: { trade: Trade }) {
     setBusy(false);
     setShowCounter(false);
     setCounterWord(null);
+    setInitiatorWords([]);
   };
 
   const handleAccept = async () => {
@@ -154,19 +158,26 @@ function TradeCard({ trade }: { trade: Trade }) {
             <p className="text-muted text-xs italic">Your inventory is empty</p>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {inventory.map((w) => (
-                <button
-                  key={w}
-                  onClick={() => setCounterWord(w === counterWord ? null : w)}
-                  className={`font-mono text-xs px-3 py-1.5 border transition-colors ${
-                    counterWord === w
-                      ? "border-gold bg-gold/10 text-gold"
-                      : "border-gold/30 text-cream hover:border-gold/60"
-                  }`}
-                >
-                  {w}
-                </button>
-              ))}
+              {inventory.map((w) => {
+                const alreadyHas = initiatorWords.includes(w);
+                return (
+                  <button
+                    key={w}
+                    disabled={alreadyHas}
+                    onClick={() => !alreadyHas && setCounterWord(w === counterWord ? null : w)}
+                    title={alreadyHas ? `${trade.initiator_name} already has this` : undefined}
+                    className={`font-mono text-xs px-3 py-1.5 border transition-colors ${
+                      alreadyHas
+                        ? "border-gold/10 text-muted opacity-40 cursor-not-allowed"
+                        : counterWord === w
+                        ? "border-gold bg-gold/10 text-gold"
+                        : "border-gold/30 text-cream hover:border-gold/60"
+                    }`}
+                  >
+                    {w}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -177,7 +188,7 @@ function TradeCard({ trade }: { trade: Trade }) {
         {trade.status === "offered" && isRecipient && !showCounter && (
           <>
             <button
-              onClick={() => setShowCounter(true)}
+              onClick={openCounter}
               className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
             >
               Counter
@@ -201,7 +212,7 @@ function TradeCard({ trade }: { trade: Trade }) {
               Propose
             </button>
             <button
-              onClick={() => { setShowCounter(false); setCounterWord(null); }}
+              onClick={() => { setShowCounter(false); setCounterWord(null); setInitiatorWords([]); }}
               className="text-muted text-xs tracking-widest uppercase hover:text-cream transition-colors"
             >
               Back

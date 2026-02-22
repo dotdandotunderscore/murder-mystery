@@ -612,6 +612,24 @@ export async function getPlayerActiveTrades(playerId: number): Promise<Trade[]> 
   `;
 }
 
+export async function getPlayersWithWordStatus(
+  excludeId: number,
+  word: string
+): Promise<{ id: number; name: string; team: string | null; has_word: boolean }[]> {
+  const upper = word.trim().toUpperCase();
+  const rows = await sql`
+    SELECT p.id, p.name, p.team, (pw.id IS NOT NULL) AS has_word
+    FROM players p
+    LEFT JOIN player_words pw ON pw.player_id = p.id AND pw.word = ${upper}
+    WHERE p.id != ${excludeId}
+    ORDER BY p.name
+  `;
+  return rows.map((r: { id: number; name: string; team: string | null; has_word: unknown }) => ({
+    ...r,
+    has_word: Boolean(r.has_word),
+  }));
+}
+
 export async function createTrade(
   initiatorId: number,
   initiatorWord: string,
