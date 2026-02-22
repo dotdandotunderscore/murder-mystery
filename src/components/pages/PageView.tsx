@@ -8,6 +8,8 @@ interface ClueResult {
   title: string;
   content: string;
   page_type: string;
+  grants_flags: string[] | null;
+  grants_words: string[] | null;
 }
 
 interface Prompt {
@@ -28,6 +30,22 @@ interface PageViewProps {
 
 function parseTemplate(template: string): string[] {
   return template.split("_____");
+}
+
+function highlightText(text: string, terms: string[]): React.ReactNode {
+  if (!terms.length || !text) return text;
+  const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
+  const parts = text.split(pattern);
+  return parts.map((part, i) =>
+    terms.some((t) => t.toLowerCase() === part.toLowerCase()) ? (
+      <span key={i} className="text-gold font-semibold">
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  );
 }
 
 export default function PageView({ clue, onBack }: PageViewProps) {
@@ -82,6 +100,9 @@ export default function PageView({ clue, onBack }: PageViewProps) {
     });
   };
 
+  const highlightTerms = [...(clue.grants_words ?? []), ...(clue.grants_flags ?? [])];
+  const hasGrants = (clue.grants_words?.length ?? 0) > 0 || (clue.grants_flags?.length ?? 0) > 0;
+
   return (
     <div className="animate-fade-in">
       {/* Clue content */}
@@ -92,9 +113,52 @@ export default function PageView({ clue, onBack }: PageViewProps) {
         <h2 className="text-3xl text-cream mb-5">{clue.title}</h2>
         <div className="h-px bg-gold/25 mb-6" />
         <p className="text-cream leading-relaxed whitespace-pre-wrap text-lg">
-          {clue.content}
+          {highlightText(clue.content, highlightTerms)}
         </p>
       </div>
+
+      {/* Grants panel */}
+      {hasGrants && (
+        <div className="border border-gold/40 bg-gold/5 p-5 mb-6">
+          <p className="text-gold text-xs tracking-[0.35em] uppercase mb-3">
+            — You Received —
+          </p>
+          {clue.grants_words && clue.grants_words.length > 0 && (
+            <div className="mb-3">
+              <p className="text-muted text-xs uppercase tracking-wide mb-2">
+                Clues
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {clue.grants_words.map((w) => (
+                  <span
+                    key={w}
+                    className="bg-gold/20 border border-gold/40 text-gold text-xs font-mono px-2 py-1 tracking-wide"
+                  >
+                    {w}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {clue.grants_flags && clue.grants_flags.length > 0 && (
+            <div>
+              <p className="text-muted text-xs uppercase tracking-wide mb-2">
+                Flags
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {clue.grants_flags.map((f) => (
+                  <span
+                    key={f}
+                    className="bg-surface border border-muted/30 text-muted text-xs px-2 py-0.5"
+                  >
+                    {f}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Prompts */}
       {prompts.length > 0 && (

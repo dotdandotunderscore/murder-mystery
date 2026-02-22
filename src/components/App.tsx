@@ -13,6 +13,8 @@ interface ClueResult {
   title: string;
   content: string;
   page_type: string;
+  grants_flags: string[] | null;
+  grants_words: string[] | null;
 }
 
 function AppInner() {

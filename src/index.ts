@@ -173,7 +173,7 @@ server = Bun.serve({
           await removePlayerWordsByText(player.id, page.removes_words);
         }
 
-        const { visible_to_teams, visible_to_players, required_flags, grants_flags, grants_words, removes_flags, removes_words, ...pageData } = page;
+        const { visible_to_teams, visible_to_players, required_flags, removes_flags, removes_words, ...pageData } = page;
         return json(pageData);
       },
     },

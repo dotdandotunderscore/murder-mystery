@@ -26,6 +26,22 @@ function parseTemplate(template: string): string[] {
   return template.split("_____");
 }
 
+function highlightText(text: string, terms: string[]): React.ReactNode {
+  if (!terms.length || !text) return text;
+  const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
+  const parts = text.split(pattern);
+  return parts.map((part, i) =>
+    terms.some((t) => t.toLowerCase() === part.toLowerCase()) ? (
+      <span key={i} className="text-gold font-semibold">
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  );
+}
+
 export default function PromptBlock({
   prompt,
   selectedWord,
@@ -69,6 +85,14 @@ export default function PromptBlock({
   };
 
   if (completed) {
+    const successText = reward?.successText ?? prompt.success_text;
+    const highlightTerms = [
+      ...(prompt.grants_words ?? []),
+      ...(prompt.grants_flags ?? []),
+    ];
+    const hasRewardGrants =
+      (reward?.words?.length ?? 0) > 0 || (reward?.flags?.length ?? 0) > 0;
+
     return (
       <div className="border border-gold/30 bg-surface p-5 mb-4">
         <p className="text-gold text-xs tracking-[0.35em] uppercase mb-2">
@@ -87,22 +111,49 @@ export default function PromptBlock({
             </React.Fragment>
           ))}
         </div>
-        {(prompt.success_text || reward) && (
+        {successText && (
+          <p className="text-cream text-sm mt-3 leading-relaxed">
+            {highlightText(successText, highlightTerms)}
+          </p>
+        )}
+        {hasRewardGrants && (
           <div className="mt-3 pt-3 border-t border-gold/20">
-            {(reward?.successText || prompt.success_text) && (
-              <p className="text-cream text-sm mb-2">
-                {reward?.successText ?? prompt.success_text}
-              </p>
+            <p className="text-gold text-xs tracking-[0.35em] uppercase mb-3">
+              — You Received —
+            </p>
+            {reward!.words && reward!.words.length > 0 && (
+              <div className="mb-2">
+                <p className="text-muted text-xs uppercase tracking-wide mb-1.5">
+                  Clues
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {reward!.words.map((w) => (
+                    <span
+                      key={w}
+                      className="bg-gold/20 border border-gold/40 text-gold text-xs font-mono px-2 py-1 tracking-wide"
+                    >
+                      {w}
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
-            {reward?.words && reward.words.length > 0 && (
-              <p className="text-gold text-xs tracking-wide mb-1">
-                New words: {reward.words.map((w) => `"${w}"`).join(", ")}
-              </p>
-            )}
-            {reward?.flags && reward.flags.length > 0 && (
-              <p className="text-muted text-xs">
-                Flags earned: {reward.flags.join(", ")}
-              </p>
+            {reward!.flags && reward!.flags.length > 0 && (
+              <div>
+                <p className="text-muted text-xs uppercase tracking-wide mb-1.5">
+                  Flags
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {reward!.flags.map((f) => (
+                    <span
+                      key={f}
+                      className="bg-surface border border-muted/30 text-muted text-xs px-2 py-0.5"
+                    >
+                      {f}
+                    </span>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         )}
