@@ -22,6 +22,8 @@ import {
   getPlayerWordsWithIds,
   grantPlayerWords,
   removePlayerWord,
+  removePlayerFlags,
+  removePlayerWordsByText,
   resetPlayerProgress,
   getCluePrompts,
   getAllPrompts,
@@ -157,8 +159,15 @@ server = Bun.serve({
         if (clue.grants_words && clue.grants_words.length > 0) {
           await grantPlayerWords(player.id, clue.grants_words);
         }
+        // Remove flags and words
+        if (clue.removes_flags && clue.removes_flags.length > 0) {
+          await removePlayerFlags(player.id, clue.removes_flags);
+        }
+        if (clue.removes_words && clue.removes_words.length > 0) {
+          await removePlayerWordsByText(player.id, clue.removes_words);
+        }
 
-        const { visible_to_teams, visible_to_players, required_flags, grants_flags, grants_words, ...clueData } = clue;
+        const { visible_to_teams, visible_to_players, required_flags, grants_flags, grants_words, removes_flags, removes_words, ...clueData } = clue;
         return json(clueData);
       },
     },
@@ -401,10 +410,14 @@ server = Bun.serve({
           c.required_flags?.forEach((f) => flags.add(f));
           c.grants_flags?.forEach((f) => flags.add(f));
           c.grants_words?.forEach((w) => words.add(w));
+          c.removes_flags?.forEach((f) => flags.add(f));
+          c.removes_words?.forEach((w) => words.add(w));
         }
         for (const p of prompts) {
           p.grants_flags?.forEach((f) => flags.add(f));
           p.grants_words?.forEach((w) => words.add(w));
+          p.removes_flags?.forEach((f) => flags.add(f));
+          p.removes_words?.forEach((w) => words.add(w));
         }
         for (const p of players) {
           if (p.team) teams.add(p.team);

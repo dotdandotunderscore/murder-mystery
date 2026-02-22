@@ -54,6 +54,8 @@ export interface Clue {
   required_flags: string[] | null;
   grants_flags: string[] | null;
   grants_words: string[] | null;
+  removes_flags: string[] | null;
+  removes_words: string[] | null;
   sort_order: number;
   created_at: Date;
 }
@@ -80,6 +82,8 @@ export interface Prompt {
   answer: string[];
   grants_flags: string[] | null;
   grants_words: string[] | null;
+  removes_flags: string[] | null;
+  removes_words: string[] | null;
   success_text: string | null;
   sort_order: number;
   created_at: Date;
@@ -152,6 +156,8 @@ export async function initializeDatabase() {
   `;
 
   await sql`ALTER TABLE clues ADD COLUMN IF NOT EXISTS grants_words TEXT[]`;
+  await sql`ALTER TABLE clues ADD COLUMN IF NOT EXISTS removes_flags TEXT[]`;
+  await sql`ALTER TABLE clues ADD COLUMN IF NOT EXISTS removes_words TEXT[]`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS player_words (
@@ -179,6 +185,8 @@ export async function initializeDatabase() {
   `;
 
   await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS success_text TEXT`;
+  await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS removes_flags TEXT[]`;
+  await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS removes_words TEXT[]`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS player_prompt_completions (
@@ -314,13 +322,16 @@ export async function createClue(data: {
   required_flags?: string[] | null;
   grants_flags?: string[] | null;
   grants_words?: string[] | null;
+  removes_flags?: string[] | null;
+  removes_words?: string[] | null;
   sort_order?: number;
 }): Promise<Clue> {
   const [clue] = await sql`
     INSERT INTO clues (
       code_phrase, title, content, page_type,
       visible_to_teams, visible_to_players,
-      required_flags, grants_flags, grants_words, sort_order
+      required_flags, grants_flags, grants_words,
+      removes_flags, removes_words, sort_order
     )
     VALUES (
       ${data.code_phrase.trim().toLowerCase()},
@@ -332,6 +343,8 @@ export async function createClue(data: {
       ${pgTextArray(normalizeLower(data.required_flags))},
       ${pgTextArray(normalizeLower(data.grants_flags))},
       ${pgTextArray(normalizeUpper(data.grants_words))},
+      ${pgTextArray(normalizeLower(data.removes_flags))},
+      ${pgTextArray(normalizeUpper(data.removes_words))},
       ${data.sort_order ?? 0}
     )
     RETURNING *
@@ -351,6 +364,8 @@ export async function updateClue(
     required_flags?: string[] | null;
     grants_flags?: string[] | null;
     grants_words?: string[] | null;
+    removes_flags?: string[] | null;
+    removes_words?: string[] | null;
     sort_order?: number;
   }
 ): Promise<Clue | null> {
@@ -365,6 +380,8 @@ export async function updateClue(
       required_flags = ${pgTextArray(normalizeLower(data.required_flags))},
       grants_flags = ${pgTextArray(normalizeLower(data.grants_flags))},
       grants_words = ${pgTextArray(normalizeUpper(data.grants_words))},
+      removes_flags = ${pgTextArray(normalizeLower(data.removes_flags))},
+      removes_words = ${pgTextArray(normalizeUpper(data.removes_words))},
       sort_order = ${data.sort_order ?? 0}
     WHERE id = ${id}
     RETURNING *
@@ -446,6 +463,22 @@ export async function removePlayerWord(playerId: number, wordId: number): Promis
   return result.length > 0;
 }
 
+export async function removePlayerFlags(playerId: number, flags: string[]): Promise<void> {
+  for (const flag of flags) {
+    await sql`
+      DELETE FROM player_flags WHERE player_id = ${playerId} AND flag = ${flag.trim().toLowerCase()}
+    `;
+  }
+}
+
+export async function removePlayerWordsByText(playerId: number, words: string[]): Promise<void> {
+  for (const word of words) {
+    await sql`
+      DELETE FROM player_words WHERE player_id = ${playerId} AND word = ${word.trim().toUpperCase()}
+    `;
+  }
+}
+
 // --- Prompt functions ---
 
 export async function getCluePrompts(clueId: number, playerId: number): Promise<PromptWithCompletion[]> {
@@ -476,11 +509,13 @@ export async function createPrompt(data: {
   answer: string[];
   grants_flags?: string[] | null;
   grants_words?: string[] | null;
+  removes_flags?: string[] | null;
+  removes_words?: string[] | null;
   success_text?: string | null;
   sort_order?: number;
 }): Promise<Prompt> {
   const [prompt] = await sql`
-    INSERT INTO prompts (clue_id, question, template, answer, grants_flags, grants_words, success_text, sort_order)
+    INSERT INTO prompts (clue_id, question, template, answer, grants_flags, grants_words, removes_flags, removes_words, success_text, sort_order)
     VALUES (
       ${data.clue_id},
       ${data.question},
@@ -488,6 +523,8 @@ export async function createPrompt(data: {
       ${pgTextArray(normalizeUpper(data.answer))},
       ${pgTextArray(normalizeLower(data.grants_flags))},
       ${pgTextArray(normalizeUpper(data.grants_words))},
+      ${pgTextArray(normalizeLower(data.removes_flags))},
+      ${pgTextArray(normalizeUpper(data.removes_words))},
       ${data.success_text ?? null},
       ${data.sort_order ?? 0}
     )
@@ -505,6 +542,8 @@ export async function updatePrompt(
     answer: string[];
     grants_flags?: string[] | null;
     grants_words?: string[] | null;
+    removes_flags?: string[] | null;
+    removes_words?: string[] | null;
     success_text?: string | null;
     sort_order?: number;
   }
@@ -517,6 +556,8 @@ export async function updatePrompt(
       answer = ${pgTextArray(normalizeUpper(data.answer))},
       grants_flags = ${pgTextArray(normalizeLower(data.grants_flags))},
       grants_words = ${pgTextArray(normalizeUpper(data.grants_words))},
+      removes_flags = ${pgTextArray(normalizeLower(data.removes_flags))},
+      removes_words = ${pgTextArray(normalizeUpper(data.removes_words))},
       success_text = ${data.success_text ?? null},
       sort_order = ${data.sort_order ?? 0}
     WHERE id = ${id}
@@ -661,6 +702,12 @@ export async function submitPromptAnswer(
   }
   if (prompt.grants_words && prompt.grants_words.length > 0) {
     await grantPlayerWords(playerId, prompt.grants_words);
+  }
+  if (prompt.removes_flags && prompt.removes_flags.length > 0) {
+    await removePlayerFlags(playerId, prompt.removes_flags);
+  }
+  if (prompt.removes_words && prompt.removes_words.length > 0) {
+    await removePlayerWordsByText(playerId, prompt.removes_words);
   }
 
   return {

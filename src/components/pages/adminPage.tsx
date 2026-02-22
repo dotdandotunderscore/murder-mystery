@@ -22,6 +22,8 @@ interface Clue {
   required_flags: string[] | null;
   grants_flags: string[] | null;
   grants_words: string[] | null;
+  removes_flags: string[] | null;
+  removes_words: string[] | null;
   sort_order: number;
 }
 
@@ -33,6 +35,8 @@ interface Prompt {
   answer: string[];
   grants_flags: string[] | null;
   grants_words: string[] | null;
+  removes_flags: string[] | null;
+  removes_words: string[] | null;
   success_text: string | null;
   sort_order: number;
 }
@@ -464,6 +468,8 @@ const defaultPageForm = {
   required_flags: [] as string[],
   grants_flags: [] as string[],
   grants_words: [] as string[],
+  removes_flags: [] as string[],
+  removes_words: [] as string[],
 };
 
 type Suggestions = {
@@ -520,6 +526,8 @@ function PagesPanel() {
       required_flags: c.required_flags ?? [],
       grants_flags: c.grants_flags ?? [],
       grants_words: c.grants_words ?? [],
+      removes_flags: c.removes_flags ?? [],
+      removes_words: c.removes_words ?? [],
     });
     setModalOpen(true);
   };
@@ -539,6 +547,8 @@ function PagesPanel() {
       required_flags: toArr(form.required_flags),
       grants_flags: toArr(form.grants_flags),
       grants_words: toArr(form.grants_words),
+      removes_flags: toArr(form.removes_flags),
+      removes_words: toArr(form.removes_words),
     };
     const res = editing
       ? await fetch(`/api/admin/clues/${editing.id}`, {
@@ -754,6 +764,22 @@ function PagesPanel() {
               suggestions={suggestions.words}
             />
           </Field>
+          <Field label="Removes Flags" hint="Flags stripped from the player when unlocked">
+            <TagInput
+              values={form.removes_flags}
+              onChange={(v) => set("removes_flags", v)}
+              placeholder="e.g. has alibi"
+              suggestions={suggestions.flags}
+            />
+          </Field>
+          <Field label="Removes Clues" hint="Words removed from player inventory when unlocked">
+            <TagInput
+              values={form.removes_words}
+              onChange={(v) => set("removes_words", v)}
+              placeholder="e.g. CANDLESTICK"
+              suggestions={suggestions.words}
+            />
+          </Field>
           <button
             type="submit"
             disabled={saving}
@@ -909,6 +935,8 @@ const defaultPromptForm = {
   answer: [] as string[],
   grants_flags: [] as string[],
   grants_words: [] as string[],
+  removes_flags: [] as string[],
+  removes_words: [] as string[],
   success_text: "",
   sort_order: 0,
 };
@@ -962,6 +990,8 @@ function PromptsPanel() {
       answer: p.answer ?? [],
       grants_flags: p.grants_flags ?? [],
       grants_words: p.grants_words ?? [],
+      removes_flags: p.removes_flags ?? [],
+      removes_words: p.removes_words ?? [],
       success_text: p.success_text ?? "",
       sort_order: p.sort_order,
     });
@@ -980,6 +1010,8 @@ function PromptsPanel() {
       answer: (form.answer as string[]).filter(Boolean),
       grants_flags: toArr(form.grants_flags as string[]),
       grants_words: toArr(form.grants_words as string[]),
+      removes_flags: toArr(form.removes_flags as string[]),
+      removes_words: toArr(form.removes_words as string[]),
       success_text: form.success_text.trim() || null,
       sort_order: form.sort_order,
     };
@@ -1130,6 +1162,22 @@ function PromptsPanel() {
             <TagInput
               values={form.grants_words as string[]}
               onChange={(v) => set("grants_words", v)}
+              placeholder="e.g. SECRET PASSAGE"
+              suggestions={suggestions.words}
+            />
+          </Field>
+          <Field label="Removes Flags" hint="Flags stripped from the player on correct answer">
+            <TagInput
+              values={form.removes_flags as string[]}
+              onChange={(v) => set("removes_flags", v)}
+              placeholder="e.g. has alibi"
+              suggestions={suggestions.flags}
+            />
+          </Field>
+          <Field label="Removes Clues" hint="Words removed from inventory on correct answer">
+            <TagInput
+              values={form.removes_words as string[]}
+              onChange={(v) => set("removes_words", v)}
               placeholder="e.g. SECRET PASSAGE"
               suggestions={suggestions.words}
             />
