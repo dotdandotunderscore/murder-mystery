@@ -141,7 +141,7 @@ export async function initializeDatabase() {
   await sql`
     CREATE TABLE IF NOT EXISTS pages (
       id SERIAL PRIMARY KEY,
-      code_phrase TEXT UNIQUE NOT NULL,
+      code_phrase TEXT NOT NULL,
       title TEXT NOT NULL,
       content TEXT DEFAULT '',
       page_type TEXT DEFAULT 'text',
@@ -164,6 +164,7 @@ export async function initializeDatabase() {
     )
   `;
 
+  await sql`ALTER TABLE pages DROP CONSTRAINT IF EXISTS pages_code_phrase_key`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS grants_words TEXT[]`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS required_flags_hints TEXT[]`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS removes_flags TEXT[]`;
@@ -320,6 +321,38 @@ export async function getAllPages(): Promise<Page[]> {
 export async function getPageByCode(codePhrase: string): Promise<Page | null> {
   const rows = await sql`SELECT * FROM pages WHERE code_phrase = ${codePhrase}`;
   return rows[0] ?? null;
+}
+
+export async function getPageByCodeForPlayer(
+  codePhrase: string,
+  playerId: number,
+  playerTeam: string | null
+): Promise<Page | null> {
+  const rows = await sql<Page[]>`SELECT * FROM pages WHERE code_phrase = ${codePhrase}`;
+  if (rows.length === 0) return null;
+  if (rows.length === 1) return rows[0];
+
+  const team = playerTeam?.toLowerCase() ?? null;
+
+  // Priority 1: explicitly listed for this player
+  const playerSpecific = rows.find(
+    (p) => p.visible_to_players && p.visible_to_players.includes(playerId)
+  );
+  if (playerSpecific) return playerSpecific;
+
+  // Priority 2: listed for this player's team (and not player-restricted)
+  const teamSpecific = rows.find(
+    (p) =>
+      !p.visible_to_players &&
+      team &&
+      p.visible_to_teams &&
+      p.visible_to_teams.map((t) => t.toLowerCase()).includes(team)
+  );
+  if (teamSpecific) return teamSpecific;
+
+  // Priority 3: open to all (no restrictions)
+  const open = rows.find((p) => !p.visible_to_players && !p.visible_to_teams);
+  return open ?? null;
 }
 
 export async function createPage(data: {

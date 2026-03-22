@@ -11,7 +11,7 @@ import {
   updatePlayer,
   deletePlayer,
   getAllPages,
-  getPageByCode,
+  getPageByCodeForPlayer,
   createPage,
   updatePage,
   deletePage,
@@ -127,23 +127,8 @@ server = Bun.serve({
 
         const body = (await req.json()) as { code_phrase: string };
         const codePhrase = body.code_phrase?.trim()?.toLowerCase();
-        const page = await getPageByCode(codePhrase);
+        const page = await getPageByCodeForPlayer(codePhrase, player.id, player.team ?? null);
         if (!page) return json({ error: "Unknown code" }, 404);
-
-        // Team access check
-        if (page.visible_to_teams && page.visible_to_teams.length > 0) {
-          const playerTeam = player.team?.toLowerCase() ?? "";
-          if (!playerTeam || !page.visible_to_teams.map((t) => t.toLowerCase()).includes(playerTeam)) {
-            return json({ error: "Access denied" }, 403);
-          }
-        }
-
-        // Player access check
-        if (page.visible_to_players && page.visible_to_players.length > 0) {
-          if (!page.visible_to_players.includes(player.id)) {
-            return json({ error: "Access denied" }, 403);
-          }
-        }
 
         // Required flags check
         if (page.required_flags && page.required_flags.length > 0) {
