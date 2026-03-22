@@ -27,6 +27,16 @@ function AppInner() {
   const [hints, setHints] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
+  React.useEffect(() => {
+    if (!player) {
+      setCurrentPage(null);
+      setClue(null);
+      setCodeInput("");
+      setError(null);
+      setHints([]);
+    }
+  }, [player?.id]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-ink flex items-center justify-center">

@@ -165,6 +165,7 @@ export async function initializeDatabase() {
   `;
 
   await sql`ALTER TABLE pages DROP CONSTRAINT IF EXISTS pages_code_phrase_key`;
+  await sql`ALTER TABLE pages DROP CONSTRAINT IF EXISTS clues_code_phrase_key`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS grants_words TEXT[]`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS required_flags_hints TEXT[]`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS removes_flags TEXT[]`;
