@@ -15,6 +15,10 @@ import {
   createPage,
   updatePage,
   deletePage,
+  getAllFolders,
+  createFolder,
+  updateFolder,
+  deleteFolder,
   getPlayerFlags,
   grantPlayerFlags,
   getAllProgress,
@@ -390,6 +394,43 @@ server = Bun.serve({
         const id = parseInt(req.params.id);
         const ok = await deletePrompt(id);
         return json({ ok }, ok ? 200 : 404);
+      },
+    },
+
+    // --- Admin: Folders ---
+
+    "/api/admin/folders": {
+      GET: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        return json(await getAllFolders());
+      },
+      POST: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const body = (await req.json()) as { name: string; parent_id?: number | null };
+        const folder = await createFolder(body.name, body.parent_id ?? null);
+        return json(folder, 201);
+      },
+    },
+
+    "/api/admin/folders/:id": {
+      PUT: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const id = parseInt(req.params.id);
+        const body = await req.json();
+        const folder = await updateFolder(id, body);
+        if (!folder) return json({ error: "Not found or circular reference" }, 404);
+        return json(folder);
+      },
+      DELETE: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const id = parseInt(req.params.id);
+        const result = await deleteFolder(id);
+        if (!result.ok) return json({ error: result.error }, 409);
+        return json({ ok: true });
       },
     },
 

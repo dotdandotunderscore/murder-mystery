@@ -51,6 +51,13 @@ export interface Session {
   created_at: Date;
 }
 
+export interface Folder {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  sort_order: number;
+}
+
 export interface Page {
   id: number;
   code_phrase: string;
@@ -66,6 +73,7 @@ export interface Page {
   removes_flags: string[] | null;
   removes_words: string[] | null;
   sort_order: number;
+  folder_id: number | null;
   created_at: Date;
 }
 
@@ -223,6 +231,16 @@ export async function initializeDatabase() {
     )
   `;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS page_folders (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      parent_id INT REFERENCES page_folders(id) ON DELETE RESTRICT,
+      sort_order INT DEFAULT 0
+    )
+  `;
+  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS folder_id INT REFERENCES page_folders(id) ON DELETE SET NULL`;
+
   // Seed initial admin if none exists
   const adminCount = await sql`SELECT COUNT(*) as count FROM players WHERE is_admin = true`;
   if (Number(adminCount[0].count) === 0) {
@@ -370,6 +388,7 @@ export async function createPage(data: {
   removes_flags?: string[] | null;
   removes_words?: string[] | null;
   sort_order?: number;
+  folder_id?: number | null;
 }): Promise<Page> {
   const [page] = await sql`
     INSERT INTO pages (
@@ -377,7 +396,7 @@ export async function createPage(data: {
       visible_to_teams, visible_to_players,
       required_flags, required_flags_hints,
       grants_flags, grants_words,
-      removes_flags, removes_words, sort_order
+      removes_flags, removes_words, sort_order, folder_id
     )
     VALUES (
       ${data.code_phrase.trim().toLowerCase()},
@@ -392,7 +411,8 @@ export async function createPage(data: {
       ${pgTextArray(normalizeUpper(data.grants_words))},
       ${pgTextArray(normalizeLower(data.removes_flags))},
       ${pgTextArray(normalizeUpper(data.removes_words))},
-      ${data.sort_order ?? 0}
+      ${data.sort_order ?? 0},
+      ${data.folder_id ?? null}
     )
     RETURNING *
   `;
@@ -415,6 +435,7 @@ export async function updatePage(
     removes_flags?: string[] | null;
     removes_words?: string[] | null;
     sort_order?: number;
+    folder_id?: number | null;
   }
 ): Promise<Page | null> {
   const [page] = await sql`
@@ -431,7 +452,8 @@ export async function updatePage(
       grants_words = ${pgTextArray(normalizeUpper(data.grants_words))},
       removes_flags = ${pgTextArray(normalizeLower(data.removes_flags))},
       removes_words = ${pgTextArray(normalizeUpper(data.removes_words))},
-      sort_order = ${data.sort_order ?? 0}
+      sort_order = ${data.sort_order ?? 0},
+      folder_id = ${data.folder_id ?? null}
     WHERE id = ${id}
     RETURNING *
   `;
@@ -441,6 +463,63 @@ export async function updatePage(
 export async function deletePage(id: number): Promise<boolean> {
   const result = await sql`DELETE FROM pages WHERE id = ${id} RETURNING id`;
   return result.length > 0;
+}
+
+// --- Folder functions ---
+
+export async function getAllFolders(): Promise<Folder[]> {
+  return await sql`SELECT * FROM page_folders ORDER BY sort_order, name`;
+}
+
+export async function createFolder(name: string, parentId: number | null): Promise<Folder> {
+  const [folder] = await sql`
+    INSERT INTO page_folders (name, parent_id)
+    VALUES (${name.trim()}, ${parentId ?? null})
+    RETURNING *
+  `;
+  return folder;
+}
+
+export async function updateFolder(
+  id: number,
+  data: { name?: string; parent_id?: number | null; sort_order?: number }
+): Promise<Folder | null> {
+  const existing = await sql`SELECT * FROM page_folders WHERE id = ${id}`;
+  if (existing.length === 0) return null;
+
+  const current = existing[0] as Folder;
+  const newParentId = "parent_id" in data ? (data.parent_id ?? null) : current.parent_id;
+
+  // Cycle detection: walk proposed parent chain, reject if own id appears
+  if (newParentId !== null) {
+    let cursor: number | null = newParentId;
+    while (cursor !== null) {
+      if (cursor === id) return null; // cycle detected
+      const rows = await sql`SELECT parent_id FROM page_folders WHERE id = ${cursor}`;
+      cursor = rows[0]?.parent_id ?? null;
+    }
+  }
+
+  const [folder] = await sql`
+    UPDATE page_folders SET
+      name = ${data.name?.trim() ?? current.name},
+      parent_id = ${newParentId},
+      sort_order = ${data.sort_order ?? current.sort_order}
+    WHERE id = ${id}
+    RETURNING *
+  `;
+  return folder ?? null;
+}
+
+export async function deleteFolder(id: number): Promise<{ ok: boolean; error?: string }> {
+  const pages = await sql`SELECT id FROM pages WHERE folder_id = ${id} LIMIT 1`;
+  if (pages.length > 0) return { ok: false, error: "Folder contains pages — move or delete them first" };
+
+  const subFolders = await sql`SELECT id FROM page_folders WHERE parent_id = ${id} LIMIT 1`;
+  if (subFolders.length > 0) return { ok: false, error: "Folder contains sub-folders — delete them first" };
+
+  await sql`DELETE FROM page_folders WHERE id = ${id}`;
+  return { ok: true };
 }
 
 // --- Player flags functions ---

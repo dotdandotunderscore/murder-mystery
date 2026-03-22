@@ -11,6 +11,13 @@ interface Player {
   created_at: string;
 }
 
+interface Folder {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  sort_order: number;
+}
+
 interface Page {
   id: number;
   code_phrase: string;
@@ -26,6 +33,7 @@ interface Page {
   removes_flags: string[] | null;
   removes_words: string[] | null;
   sort_order: number;
+  folder_id: number | null;
 }
 
 interface Prompt {
@@ -577,7 +585,275 @@ function RequiredFlagsEditor({
   );
 }
 
-// ── Pages Panel ─────────────────────────────────────────────────────────────────
+// ── Template editor helpers ─────────────────────────────────────────────────────
+
+// Convert stored template + answers back to the [WORD] rich format for editing
+function toRichTemplate(template: string, answers: string[]): string {
+  let i = 0;
+  return template.replace(/_____/g, () => `[${answers[i++] ?? ""}]`);
+}
+
+// Parse [WORD] rich format into the stored template + answer array
+function fromRichTemplate(rich: string): { template: string; answer: string[] } {
+  const answer: string[] = [];
+  const template = rich.replace(/\[([^\]]*)\]/g, (_, w) => {
+    answer.push(w.trim().toUpperCase());
+    return "_____";
+  });
+  return { template, answer };
+}
+
+function TemplateEditor({
+  value,
+  onChange,
+  wordSuggestions,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  wordSuggestions: string[];
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const insertWord = (word: string) => {
+    const el = inputRef.current;
+    const insertion = `[${word}]`;
+    if (!el) { onChange(value + insertion); return; }
+    const start = el.selectionStart ?? value.length;
+    const end = el.selectionEnd ?? start;
+    const next = value.slice(0, start) + insertion + value.slice(end);
+    onChange(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + insertion.length;
+      el.setSelectionRange(pos, pos);
+    });
+  };
+
+  const gaps = [...value.matchAll(/\[([^\]]*)\]/g)]
+    .map((m) => m[1].trim().toUpperCase())
+    .filter(Boolean);
+
+  return (
+    <div className="space-y-2">
+      <input
+        ref={inputRef}
+        className={inputCls}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="e.g. The [CANDLESTICK] was found in the [LIBRARY]."
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+      />
+      {wordSuggestions.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {wordSuggestions.map((w) => (
+            <button
+              key={w}
+              type="button"
+              onClick={() => insertWord(w)}
+              className="border border-gold/25 text-muted font-mono text-xs px-2 py-0.5 hover:border-gold hover:text-gold transition-colors"
+            >
+              {w}
+            </button>
+          ))}
+        </div>
+      )}
+      {gaps.length > 0 && (
+        <p className="text-muted text-xs">
+          {gaps.length} gap{gaps.length !== 1 ? "s" : ""}:{" "}
+          <span className="text-cream font-mono">{gaps.join(" → ")}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Suggestions type ───────────────────────────────────────────────────────────
+
+type Suggestions = {
+  flags: string[];
+  words: string[];
+  teams: string[];
+  players: { id: number; name: string }[];
+};
+const emptySuggestions: Suggestions = { flags: [], words: [], teams: [], players: [] };
+
+// ── Prompt Modal ───────────────────────────────────────────────────────────────
+
+const defaultPromptForm = {
+  page_id: "" as string | number,
+  question: "",
+  rich_template: "",
+  grants_flags: [] as string[],
+  grants_words: [] as string[],
+  removes_flags: [] as string[],
+  removes_words: [] as string[],
+  success_text: "",
+  sort_order: 0,
+};
+
+interface PromptModalProps {
+  open: boolean;
+  onClose: () => void;
+  editing: Prompt | null;
+  presetPageId?: number;
+  pages: Page[];
+  suggestions: Suggestions;
+  onSaved: () => void;
+}
+
+function PromptModal({ open, onClose, editing, presetPageId, pages, suggestions, onSaved }: PromptModalProps) {
+  const [form, setForm] = useState(defaultPromptForm);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    if (editing) {
+      setForm({
+        page_id: editing.page_id,
+        question: editing.question,
+        rich_template: toRichTemplate(editing.template, editing.answer ?? []),
+        grants_flags: editing.grants_flags ?? [],
+        grants_words: editing.grants_words ?? [],
+        removes_flags: editing.removes_flags ?? [],
+        removes_words: editing.removes_words ?? [],
+        success_text: editing.success_text ?? "",
+        sort_order: editing.sort_order,
+      });
+    } else {
+      setForm({ ...defaultPromptForm, page_id: presetPageId ?? (pages[0]?.id ?? "") });
+    }
+  }, [open, editing, presetPageId]);
+
+  const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    const { template, answer } = fromRichTemplate(form.rich_template.trim());
+    const body = {
+      page_id: Number(form.page_id),
+      question: form.question.trim(),
+      template,
+      answer,
+      grants_flags: toArr(form.grants_flags as string[]),
+      grants_words: toArr(form.grants_words as string[]),
+      removes_flags: toArr(form.removes_flags as string[]),
+      removes_words: toArr(form.removes_words as string[]),
+      success_text: form.success_text.trim() || null,
+      sort_order: form.sort_order,
+    };
+    const res = editing
+      ? await fetch(`/api/admin/prompts/${editing.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        })
+      : await fetch("/api/admin/prompts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+    if (res.ok) {
+      onClose();
+      onSaved();
+      toast.success(editing ? "Prompt updated" : "Prompt created");
+    } else {
+      toast.error(await getErrorMessage(res));
+    }
+    setSaving(false);
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title={editing ? "Edit Prompt" : "Add Prompt"}>
+      <form onSubmit={handleSave}>
+        <Field label="Page">
+          <select
+            className={`${inputCls} cursor-pointer`}
+            value={form.page_id}
+            onChange={(e) => set("page_id", e.target.value)}
+            required
+          >
+            {pages.map((p) => (
+              <option key={p.id} value={p.id}>{p.title} ({p.code_phrase})</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Question" hint="Shown above the fill-in-the-gap sentence">
+          <input
+            className={inputCls}
+            value={form.question}
+            onChange={(e) => set("question", e.target.value)}
+            placeholder="Where was the body found?"
+            required
+          />
+        </Field>
+        <Field label="Template" hint="Use [WORD] to mark each gap — click a word below to insert">
+          <TemplateEditor
+            value={form.rich_template}
+            onChange={(v) => set("rich_template", v)}
+            wordSuggestions={suggestions.words}
+          />
+        </Field>
+        <Field label="Success Text" hint="Optional — shown to the player after a correct answer">
+          <textarea
+            className={`${inputCls} resize-none`}
+            rows={3}
+            value={form.success_text}
+            onChange={(e) => set("success_text", e.target.value)}
+            placeholder="Well done! You've uncovered…"
+          />
+        </Field>
+        <Field label="Grants Flags" hint="Flags awarded on correct answer">
+          <TagInput
+            values={form.grants_flags as string[]}
+            onChange={(v) => set("grants_flags", v)}
+            placeholder="e.g. solved the cipher"
+            suggestions={suggestions.flags}
+          />
+        </Field>
+        <Field label="Grants Clues" hint="Words added to inventory on correct answer">
+          <TagInput
+            values={form.grants_words as string[]}
+            onChange={(v) => set("grants_words", v)}
+            placeholder="e.g. SECRET PASSAGE"
+            suggestions={suggestions.words}
+          />
+        </Field>
+        <Field label="Removes Flags" hint="Flags stripped from the player on correct answer">
+          <TagInput
+            values={form.removes_flags as string[]}
+            onChange={(v) => set("removes_flags", v)}
+            placeholder="e.g. has alibi"
+            suggestions={suggestions.flags}
+          />
+        </Field>
+        <Field label="Removes Clues" hint="Words removed from inventory on correct answer">
+          <TagInput
+            values={form.removes_words as string[]}
+            onChange={(v) => set("removes_words", v)}
+            placeholder="e.g. SECRET PASSAGE"
+            suggestions={suggestions.words}
+          />
+        </Field>
+        <Field label="Order">
+          <input
+            className={inputCls}
+            type="number"
+            value={form.sort_order}
+            onChange={(e) => set("sort_order", parseInt(e.target.value) || 0)}
+          />
+        </Field>
+        <button type="submit" disabled={saving} className={saveBtnCls} style={{ fontFamily: "var(--font-family-display)" }}>
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
+// ── Pages Panel (tree view) ────────────────────────────────────────────────────
 
 const defaultPageForm = {
   code_phrase: "",
@@ -592,35 +868,69 @@ const defaultPageForm = {
   grants_words: [] as string[],
   removes_flags: [] as string[],
   removes_words: [] as string[],
+  folder_id: null as number | null,
 };
 
-type Suggestions = {
-  flags: string[];
-  words: string[];
-  teams: string[];
-  players: { id: number; name: string }[];
-};
-const emptySuggestions: Suggestions = { flags: [], words: [], teams: [], players: [] };
+// DFS folder options for select dropdown with depth-based indent
+function folderOptions(
+  folders: Folder[],
+  parentId: number | null = null,
+  depth = 0
+): { folder: Folder; depth: number }[] {
+  const children = folders
+    .filter((f) => f.parent_id === parentId)
+    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+  const result: { folder: Folder; depth: number }[] = [];
+  for (const child of children) {
+    result.push({ folder: child, depth });
+    result.push(...folderOptions(folders, child.id, depth + 1));
+  }
+  return result;
+}
 
 function PagesPanel() {
   const [pages, setPages] = useState<Page[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestions>(emptySuggestions);
-  const [loading, setLoading] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<Page | null>(null);
+  const [expandedFolders, setExpandedFolders] = useState<Set<number>>(new Set());
+  const [expandedPages, setExpandedPages] = useState<Set<number>>(new Set());
+  const [search, setSearch] = useState("");
+  const [dragOverFolder, setDragOverFolder] = useState<number | "root" | null>(null);
+  const [renamingFolder, setRenamingFolder] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [creatingInFolder, setCreatingInFolder] = useState<number | "root" | null>(null);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [promptModal, setPromptModal] = useState<{ open: boolean; editing: Prompt | null; presetPageId?: number }>({ open: false, editing: null });
   const [form, setForm] = useState(defaultPageForm);
-  const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState<Page | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [confirmDeleteFolder, setConfirmDeleteFolder] = useState<number | null>(null);
+  const [confirmDeletePrompt, setConfirmDeletePrompt] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
-    const [pagesRes, suggRes] = await Promise.all([
-      fetch("/api/admin/pages"),
-      fetch("/api/admin/suggestions"),
-    ]);
-    if (pagesRes.ok) setPages(await pagesRes.json());
-    if (suggRes.ok) setSuggestions(await suggRes.json());
-    setLoading(false);
+    try {
+      const [pagesRes, foldersRes, promptsRes, suggRes] = await Promise.all([
+        fetch("/api/admin/pages"),
+        fetch("/api/admin/folders"),
+        fetch("/api/admin/prompts"),
+        fetch("/api/admin/suggestions"),
+      ]);
+      if (pagesRes.ok) setPages(await pagesRes.json());
+      if (foldersRes.ok) setFolders(await foldersRes.json());
+      if (promptsRes.ok) {
+        const pr = await promptsRes.json();
+        setPrompts(Array.isArray(pr) ? pr : []);
+      }
+      if (suggRes.ok) setSuggestions(await suggRes.json());
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -629,6 +939,8 @@ function PagesPanel() {
     suggestions.players.find((p) => p.id === id)?.name ?? String(id);
   const playerId = (name: string) =>
     suggestions.players.find((p) => p.name === name)?.id ?? Number(name);
+
+  // ── Page CRUD ──────────────────────────────────────────────────────────────
 
   const openCreate = () => {
     setEditing(null);
@@ -651,16 +963,16 @@ function PagesPanel() {
       grants_words: c.grants_words ?? [],
       removes_flags: c.removes_flags ?? [],
       removes_words: c.removes_words ?? [],
+      folder_id: c.folder_id ?? null,
     });
     setModalOpen(true);
   };
 
-  const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+  const setF = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    // Build required_flags + hints together to keep the parallel arrays in sync
     const flagHintPairs = form.required_flags
       .map((f, i) => ({ flag: f.trim().toLowerCase(), hint: (form.required_flags_hints[i] ?? "").trim() }))
       .filter((p) => p.flag);
@@ -683,6 +995,7 @@ function PagesPanel() {
       grants_words: toArr(form.grants_words),
       removes_flags: toArr(form.removes_flags),
       removes_words: toArr(form.removes_words),
+      folder_id: form.folder_id ?? null,
     };
     const res = editing
       ? await fetch(`/api/admin/pages/${editing.id}`, {
@@ -697,6 +1010,7 @@ function PagesPanel() {
         });
     if (res.ok) {
       setModalOpen(false);
+      if (form.folder_id) setExpandedFolders((prev) => new Set([...prev, form.folder_id as number]));
       load();
       toast.success(editing ? "Page updated" : "Page created");
     } else {
@@ -716,15 +1030,393 @@ function PagesPanel() {
     setConfirmDelete(null);
   };
 
+  // ── Drag and drop ──────────────────────────────────────────────────────────
+
+  const handleDrop = async (e: React.DragEvent, targetFolderId: number | null) => {
+    e.preventDefault();
+    setDragOverFolder(null);
+    const pageIdStr = e.dataTransfer.getData("pageId");
+    const folderIdStr = e.dataTransfer.getData("folderId");
+
+    if (pageIdStr) {
+      const pageId = parseInt(pageIdStr);
+      const page = pages.find((p) => p.id === pageId);
+      if (!page) return;
+      setPages((prev) => prev.map((p) => p.id === pageId ? { ...p, folder_id: targetFolderId } : p));
+      const res = await fetch(`/api/admin/pages/${pageId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...page, folder_id: targetFolderId }),
+      });
+      if (!res.ok) { toast.error("Failed to move page"); load(); }
+    } else if (folderIdStr) {
+      const draggedId = parseInt(folderIdStr);
+      if (draggedId === targetFolderId) return;
+      // Optimistic update
+      setFolders((prev) => prev.map((f) => f.id === draggedId ? { ...f, parent_id: targetFolderId } : f));
+      const res = await fetch(`/api/admin/folders/${draggedId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parent_id: targetFolderId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error ?? "Failed to move folder");
+        load();
+      } else {
+        // Auto-expand the target so you can see where it landed
+        if (targetFolderId !== null) setExpandedFolders((prev) => new Set([...prev, targetFolderId]));
+      }
+    }
+  };
+
+  // ── Folder CRUD ────────────────────────────────────────────────────────────
+
+  const commitNewFolder = async (parentId: number | null) => {
+    const name = newFolderName.trim();
+    setCreatingInFolder(null);
+    setNewFolderName("");
+    if (!name) return;
+    const res = await fetch("/api/admin/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, parent_id: parentId }),
+    });
+    if (res.ok) {
+      const folder: Folder = await res.json();
+      setFolders((prev) => [...prev, folder]);
+      if (parentId !== null) setExpandedFolders((prev) => new Set([...prev, parentId]));
+    } else {
+      toast.error("Failed to create folder");
+    }
+  };
+
+  const commitRename = async (id: number) => {
+    const name = renameValue.trim();
+    setRenamingFolder(null);
+    if (!name) return;
+    const res = await fetch(`/api/admin/folders/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (res.ok) {
+      const updated: Folder = await res.json();
+      setFolders((prev) => prev.map((f) => f.id === id ? updated : f));
+    } else {
+      toast.error("Failed to rename folder");
+    }
+  };
+
+  const handleDeleteFolder = async (id: number) => {
+    setConfirmDeleteFolder(null);
+    const res = await fetch(`/api/admin/folders/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setFolders((prev) => prev.filter((f) => f.id !== id));
+      toast.success("Folder deleted");
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast.error(data.error ?? "Failed to delete folder");
+    }
+  };
+
+  // ── Prompt delete ──────────────────────────────────────────────────────────
+
+  const handleDeletePrompt = async (id: number) => {
+    setConfirmDeletePrompt(null);
+    const res = await fetch(`/api/admin/prompts/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setPrompts((prev) => prev.filter((p) => p.id !== id));
+      toast.success("Prompt deleted");
+    } else {
+      toast.error("Failed to delete prompt");
+    }
+  };
+
+  // ── Tree rendering ─────────────────────────────────────────────────────────
+
+  const renderTree = (parentId: number | null, depth: number): React.ReactNode => {
+    const childFolders = folders
+      .filter((f) => f.parent_id === parentId)
+      .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+    const childPages = pages
+      .filter((p) => p.folder_id === parentId)
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    return (
+      <>
+        {childFolders.map((folder) => {
+          const isExpanded = expandedFolders.has(folder.id);
+          const isRenaming = renamingFolder === folder.id;
+          const isConfirmingDelete = confirmDeleteFolder === folder.id;
+          const isCreatingIn = creatingInFolder === folder.id;
+          const isDragOver = dragOverFolder === folder.id;
+
+          const toggleFolderExpand = () => setExpandedFolders((prev) => {
+            const next = new Set(prev);
+            if (next.has(folder.id)) next.delete(folder.id); else next.add(folder.id);
+            return next;
+          });
+
+          return (
+            <div key={`f-${folder.id}`}>
+              {/* Folder row */}
+              <div
+                className={`flex items-center gap-2 py-1.5 group transition-colors cursor-pointer ${isDragOver ? "ring-1 ring-inset ring-gold bg-gold/10" : "hover:bg-surface-2"}`}
+                style={{ paddingLeft: depth * 16 + 8, paddingRight: 8 }}
+                draggable
+                onClick={() => {
+                  if (clickTimerRef.current) {
+                    clearTimeout(clickTimerRef.current);
+                    clickTimerRef.current = null;
+                  } else {
+                    clickTimerRef.current = setTimeout(() => {
+                      clickTimerRef.current = null;
+                      toggleFolderExpand();
+                    }, 220);
+                  }
+                }}
+                onDoubleClick={() => {
+                  if (clickTimerRef.current) {
+                    clearTimeout(clickTimerRef.current);
+                    clickTimerRef.current = null;
+                  }
+                  setRenamingFolder(folder.id);
+                  setRenameValue(folder.name);
+                }}
+                onDragStart={(e) => { e.dataTransfer.setData("folderId", String(folder.id)); e.dataTransfer.effectAllowed = "move"; }}
+                onDragOver={(e) => { e.preventDefault(); setDragOverFolder(folder.id); }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverFolder(null); }}
+                onDrop={(e) => handleDrop(e, folder.id)}
+              >
+                <span className="text-muted text-xs w-4 shrink-0 select-none">
+                  {isExpanded ? "▾" : "▸"}
+                </span>
+                <span className="text-muted text-xs shrink-0">📁</span>
+                {isRenaming ? (
+                  <input
+                    className={`${fieldCls} flex-1 py-0.5 text-sm`}
+                    autoFocus
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); commitRename(folder.id); }
+                      if (e.key === "Escape") setRenamingFolder(null);
+                    }}
+                    onBlur={() => commitRename(folder.id)}
+                  />
+                ) : (
+                  <span
+                    className="text-cream text-sm flex-1 select-none min-w-0 truncate"
+                  >
+                    {folder.name}
+                  </span>
+                )}
+                {!isRenaming && (
+                  <span className={`flex items-center gap-2 shrink-0 ${isConfirmingDelete ? "" : "hidden group-hover:flex"}`}>
+                    <button
+                      className="text-muted text-xs hover:text-gold transition-colors whitespace-nowrap"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCreatingInFolder(folder.id);
+                        setNewFolderName("");
+                        setExpandedFolders((prev) => new Set([...prev, folder.id]));
+                      }}
+                    >
+                      + sub-folder
+                    </button>
+                    {isConfirmingDelete ? (
+                      <>
+                        <span className="text-muted text-xs">Delete?</span>
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); }} className="text-danger text-xs hover:underline">Yes</button>
+                        <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteFolder(null); }} className="text-muted text-xs hover:text-cream">No</button>
+                      </>
+                    ) : (
+                      <button
+                        className="text-muted text-xs hover:text-danger transition-colors"
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteFolder(folder.id); }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </span>
+                )}
+              </div>
+
+              {/* Folder children */}
+              {isExpanded && (
+                <>
+                  {renderTree(folder.id, depth + 1)}
+                  {isCreatingIn && (
+                    <div style={{ paddingLeft: (depth + 1) * 16 + 8, paddingRight: 8 }} className="py-1.5">
+                      <input
+                        className={`${inputCls} text-sm py-0.5`}
+                        autoFocus
+                        value={newFolderName}
+                        onChange={(e) => setNewFolderName(e.target.value)}
+                        placeholder="Folder name…"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { e.preventDefault(); commitNewFolder(folder.id); }
+                          if (e.key === "Escape") { setCreatingInFolder(null); setNewFolderName(""); }
+                        }}
+                        onBlur={() => commitNewFolder(folder.id)}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+
+        {childPages.map((page) => {
+          const isExpanded = expandedPages.has(page.id);
+          const pagePrompts = prompts
+            .filter((p) => p.page_id === page.id)
+            .sort((a, b) => a.sort_order - b.sort_order);
+
+          const togglePageExpand = () => setExpandedPages((prev) => {
+            const next = new Set(prev);
+            if (next.has(page.id)) next.delete(page.id); else next.add(page.id);
+            return next;
+          });
+
+          return (
+            <div key={`p-${page.id}`}>
+              {/* Page row */}
+              <div
+                className="flex items-center gap-2 py-1.5 group hover:bg-surface-2 transition-colors cursor-pointer"
+                style={{ paddingLeft: depth * 16 + 8, paddingRight: 8 }}
+                draggable
+                onClick={() => {
+                  if (clickTimerRef.current) {
+                    // Second click of a double-click — cancel pending expand, let onDoubleClick handle it
+                    clearTimeout(clickTimerRef.current);
+                    clickTimerRef.current = null;
+                  } else {
+                    clickTimerRef.current = setTimeout(() => {
+                      clickTimerRef.current = null;
+                      togglePageExpand();
+                    }, 220);
+                  }
+                }}
+                onDoubleClick={() => {
+                  if (clickTimerRef.current) {
+                    clearTimeout(clickTimerRef.current);
+                    clickTimerRef.current = null;
+                  }
+                  openEdit(page);
+                }}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("pageId", String(page.id));
+                  e.dataTransfer.effectAllowed = "move";
+                }}
+              >
+                <span className="text-muted text-xs w-4 shrink-0 select-none">
+                  {isExpanded ? "▾" : "▸"}
+                </span>
+                <span className="font-mono text-xs text-gold shrink-0">{page.code_phrase}</span>
+                <span className="text-cream text-sm flex-1 truncate min-w-0">{page.title}</span>
+                <span className="text-muted text-xs hidden sm:block shrink-0">{page.page_type}</span>
+                <span className={`flex items-center gap-3 shrink-0 ${confirmDelete === page.id ? "" : "hidden group-hover:flex"}`}>
+                  {confirmDelete === page.id ? (
+                    <>
+                      <span className="text-muted text-xs">Delete?</span>
+                      <button onClick={(e) => { e.stopPropagation(); handleDelete(page.id); }} className="text-danger text-xs hover:underline">Yes</button>
+                      <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }} className="text-muted text-xs hover:text-cream">No</button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={(e) => { e.stopPropagation(); openEdit(page); }} className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors">Edit</button>
+                      <button onClick={(e) => { e.stopPropagation(); setConfirmDelete(page.id); }} className="text-muted text-xs tracking-widest uppercase hover:text-danger transition-colors">Delete</button>
+                    </>
+                  )}
+                </span>
+              </div>
+
+              {/* Inline prompts */}
+              {isExpanded && (
+                <div>
+                  {pagePrompts.map((prompt) => (
+                    <div
+                      key={`pr-${prompt.id}`}
+                      className="flex items-center gap-2 py-1 group hover:bg-surface-2/50 transition-colors"
+                      style={{ paddingLeft: (depth + 1) * 16 + 8, paddingRight: 8 }}
+                    >
+                      <span className="text-muted text-xs w-4 shrink-0 text-center">↳</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-cream text-xs">{prompt.question}</span>
+                        <span className="text-muted text-xs font-mono ml-2">{prompt.template}</span>
+                      </div>
+                      <span className={`flex items-center gap-3 shrink-0 ${confirmDeletePrompt === prompt.id ? "" : "hidden group-hover:flex"}`}>
+                        {confirmDeletePrompt === prompt.id ? (
+                          <>
+                            <span className="text-muted text-xs">Delete?</span>
+                            <button onClick={() => handleDeletePrompt(prompt.id)} className="text-danger text-xs hover:underline">Yes</button>
+                            <button onClick={() => setConfirmDeletePrompt(null)} className="text-muted text-xs hover:text-cream">No</button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => setPromptModal({ open: true, editing: prompt, presetPageId: page.id })}
+                              className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeletePrompt(prompt.id)}
+                              className="text-muted text-xs tracking-widest uppercase hover:text-danger transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                  <div style={{ paddingLeft: (depth + 1) * 16 + 8, paddingRight: 8 }} className="py-1">
+                    <button
+                      onClick={() => setPromptModal({ open: true, editing: null, presetPageId: page.id })}
+                      className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
+                    >
+                      + Add Prompt
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </>
+    );
+  };
+
+  // ── Search mode: flat filtered list ───────────────────────────────────────
+
+  const searchResults = search.trim()
+    ? pages.filter(
+        (p) =>
+          p.title.toLowerCase().includes(search.toLowerCase()) ||
+          p.code_phrase.toLowerCase().includes(search.toLowerCase())
+      )
+    : null;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
   return (
     <>
-      <div className="flex items-center justify-between mb-5">
-        <span className="text-muted text-xs tracking-widest uppercase">
-          {pages.length} page{pages.length !== 1 ? "s" : ""}
-        </span>
+      {/* Top bar */}
+      <div className="flex items-center gap-3 mb-4">
+        <input
+          className={`${fieldCls} flex-1 text-sm`}
+          placeholder="Search pages…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
         <button
           onClick={openCreate}
-          className="bg-gold text-ink px-4 py-2 text-xs tracking-widest uppercase font-semibold hover:bg-gold-light transition-colors"
+          className="bg-gold text-ink px-4 py-2 text-xs tracking-widest uppercase font-semibold hover:bg-gold-light transition-colors shrink-0"
           style={{ fontFamily: "var(--font-family-display)" }}
         >
           Add Page
@@ -733,95 +1425,81 @@ function PagesPanel() {
 
       {loading ? (
         <p className="text-muted text-sm text-center py-10">Loading…</p>
+      ) : searchResults ? (
+        /* Search results — flat list */
+        <div className="border border-gold/20">
+          {searchResults.length === 0 ? (
+            <p className="text-muted text-sm text-center py-10">No pages match.</p>
+          ) : (
+            searchResults.map((page) => (
+              <div
+                key={page.id}
+                className="flex items-center gap-2 py-1.5 px-2 group hover:bg-surface-2 transition-colors border-b border-gold/10 last:border-b-0"
+              >
+                <span className="font-mono text-xs text-gold shrink-0">{page.code_phrase}</span>
+                <span className="text-cream text-sm flex-1 truncate min-w-0">{page.title}</span>
+                <span className="hidden group-hover:flex items-center gap-3 shrink-0">
+                  <button onClick={() => openEdit(page)} className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors">Edit</button>
+                  <button onClick={() => { setConfirmDelete(page.id); }} className="text-muted text-xs tracking-widest uppercase hover:text-danger transition-colors">Delete</button>
+                </span>
+              </div>
+            ))
+          )}
+        </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gold/20">
-                <th className="text-left text-gold text-xs tracking-widest uppercase font-normal py-3 pr-4">
-                  Code
-                </th>
-                <th className="text-left text-gold text-xs tracking-widest uppercase font-normal py-3 pr-4">
-                  Title
-                </th>
-                <th className="text-left text-gold text-xs tracking-widest uppercase font-normal py-3 pr-4 hidden sm:table-cell">
-                  Type
-                </th>
-                <th className="py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {pages.map((c) => (
-                <tr key={c.id} className="border-b border-gold/10">
-                  <td className="py-3 pr-4 font-mono text-xs text-gold">
-                    {c.code_phrase}
-                  </td>
-                  <td className="py-3 pr-4 text-cream">{c.title}</td>
-                  <td className="py-3 pr-4 text-muted hidden sm:table-cell">
-                    {c.page_type}
-                  </td>
-                  <td className="py-3 text-right whitespace-nowrap">
-                    {confirmDelete === c.id ? (
-                      <span className="inline-flex items-center gap-3">
-                        <span className="text-muted text-xs">Delete?</span>
-                        <button
-                          onClick={() => handleDelete(c.id)}
-                          className="text-danger text-xs hover:underline"
-                        >
-                          Yes
-                        </button>
-                        <button
-                          onClick={() => setConfirmDelete(null)}
-                          className="text-muted text-xs hover:text-cream"
-                        >
-                          No
-                        </button>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-4">
-                        <button
-                          onClick={() => openEdit(c)}
-                          className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => setConfirmDelete(c.id)}
-                          className="text-muted text-xs tracking-widest uppercase hover:text-danger transition-colors"
-                        >
-                          Delete
-                        </button>
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {pages.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="py-10 text-center text-muted text-sm"
-                  >
-                    No pages yet. Add one to get started.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        /* Tree view */
+        <div className="border border-gold/20">
+          {/* Root drop zone + new folder button */}
+          <div
+            className={`flex items-center gap-2 py-1.5 px-2 border-b border-gold/10 transition-colors ${dragOverFolder === "root" ? "bg-gold/10 ring-1 ring-inset ring-gold" : ""}`}
+            onDragOver={(e) => { e.preventDefault(); setDragOverFolder("root"); }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverFolder(null); }}
+            onDrop={(e) => handleDrop(e, null)}
+          >
+            <span className="text-muted text-xs flex-1">Root</span>
+            <button
+              className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
+              onClick={() => { setCreatingInFolder("root"); setNewFolderName(""); }}
+            >
+              + New Folder
+            </button>
+          </div>
+
+          {/* Root-level folder creation input */}
+          {creatingInFolder === "root" && (
+            <div className="px-2 py-1.5 border-b border-gold/10">
+              <input
+                className={`${inputCls} text-sm py-0.5`}
+                autoFocus
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="Folder name…"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); commitNewFolder(null); }
+                  if (e.key === "Escape") { setCreatingInFolder(null); setNewFolderName(""); }
+                }}
+                onBlur={() => commitNewFolder(null)}
+              />
+            </div>
+          )}
+
+          {/* Tree */}
+          {renderTree(null, 0)}
+
+          {pages.length === 0 && folders.length === 0 && (
+            <p className="text-muted text-sm text-center py-10">No pages yet. Add one to get started.</p>
+          )}
         </div>
       )}
 
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={editing ? "Edit Page" : "Add Page"}
-      >
+      {/* Page edit/create modal */}
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit Page" : "Add Page"}>
         <form onSubmit={handleSave}>
           <Field label="Code Phrase" hint="What players type in — stored lowercase">
             <input
               className={inputCls}
               value={form.code_phrase}
-              onChange={(e) => set("code_phrase", e.target.value)}
+              onChange={(e) => setF("code_phrase", e.target.value)}
               placeholder="e.g. butler-did-it"
               required
               autoCapitalize="none"
@@ -833,17 +1511,31 @@ function PagesPanel() {
             <input
               className={inputCls}
               value={form.title}
-              onChange={(e) => set("title", e.target.value)}
+              onChange={(e) => setF("title", e.target.value)}
               placeholder="Heading shown to player"
               required
             />
+          </Field>
+          <Field label="Folder">
+            <select
+              className={`${inputCls} cursor-pointer`}
+              value={form.folder_id ?? ""}
+              onChange={(e) => setF("folder_id", e.target.value === "" ? null : parseInt(e.target.value))}
+            >
+              <option value="">(Root — no folder)</option>
+              {folderOptions(folders).map(({ folder, depth }) => (
+                <option key={folder.id} value={folder.id}>
+                  {"\u00a0\u00a0".repeat(depth)}{folder.name}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Content">
             <textarea
               className={`${inputCls} resize-none`}
               rows={5}
               value={form.content}
-              onChange={(e) => set("content", e.target.value)}
+              onChange={(e) => setF("content", e.target.value)}
               placeholder="Page text…"
             />
           </Field>
@@ -851,7 +1543,7 @@ function PagesPanel() {
             <select
               className={`${inputCls} cursor-pointer`}
               value={form.page_type}
-              onChange={(e) => set("page_type", e.target.value)}
+              onChange={(e) => setF("page_type", e.target.value)}
             >
               <option value="text">Text</option>
               <option value="cipher">Cipher</option>
@@ -861,7 +1553,7 @@ function PagesPanel() {
           <Field label="Visible to Teams" hint="Blank = all teams">
             <TagInput
               values={form.visible_to_teams}
-              onChange={(v) => set("visible_to_teams", v)}
+              onChange={(v) => setF("visible_to_teams", v)}
               placeholder="e.g. red"
               suggestions={suggestions.teams}
             />
@@ -869,7 +1561,7 @@ function PagesPanel() {
           <Field label="Visible to Players" hint="Blank = all players">
             <TagInput
               values={form.visible_to_players}
-              onChange={(v) => set("visible_to_players", v)}
+              onChange={(v) => setF("visible_to_players", v)}
               placeholder="Player name"
               suggestions={suggestions.players.map((p) => p.name)}
             />
@@ -885,7 +1577,7 @@ function PagesPanel() {
           <Field label="Grants Flags" hint="Awarded when this page is unlocked">
             <TagInput
               values={form.grants_flags}
-              onChange={(v) => set("grants_flags", v)}
+              onChange={(v) => setF("grants_flags", v)}
               placeholder="e.g. searched the study"
               suggestions={suggestions.flags}
             />
@@ -893,7 +1585,7 @@ function PagesPanel() {
           <Field label="Grants Clues" hint="Words added to player inventory when unlocked">
             <TagInput
               values={form.grants_words}
-              onChange={(v) => set("grants_words", v)}
+              onChange={(v) => setF("grants_words", v)}
               placeholder="e.g. CANDLESTICK"
               suggestions={suggestions.words}
             />
@@ -901,7 +1593,7 @@ function PagesPanel() {
           <Field label="Removes Flags" hint="Flags stripped from the player when unlocked">
             <TagInput
               values={form.removes_flags}
-              onChange={(v) => set("removes_flags", v)}
+              onChange={(v) => setF("removes_flags", v)}
               placeholder="e.g. has alibi"
               suggestions={suggestions.flags}
             />
@@ -909,7 +1601,7 @@ function PagesPanel() {
           <Field label="Removes Clues" hint="Words removed from player inventory when unlocked">
             <TagInput
               values={form.removes_words}
-              onChange={(v) => set("removes_words", v)}
+              onChange={(v) => setF("removes_words", v)}
               placeholder="e.g. CANDLESTICK"
               suggestions={suggestions.words}
             />
@@ -924,6 +1616,17 @@ function PagesPanel() {
           </button>
         </form>
       </Modal>
+
+      {/* Prompt modal */}
+      <PromptModal
+        open={promptModal.open}
+        onClose={() => setPromptModal({ open: false, editing: null })}
+        editing={promptModal.editing}
+        presetPageId={promptModal.presetPageId}
+        pages={pages}
+        suggestions={suggestions}
+        onSaved={load}
+      />
     </>
   );
 }
@@ -1060,355 +1763,9 @@ function ProgressPanel() {
   );
 }
 
-// ── Template editor helpers ─────────────────────────────────────────────────────
-
-// Convert stored template + answers back to the [WORD] rich format for editing
-function toRichTemplate(template: string, answers: string[]): string {
-  let i = 0;
-  return template.replace(/_____/g, () => `[${answers[i++] ?? ""}]`);
-}
-
-// Parse [WORD] rich format into the stored template + answer array
-function fromRichTemplate(rich: string): { template: string; answer: string[] } {
-  const answer: string[] = [];
-  const template = rich.replace(/\[([^\]]*)\]/g, (_, w) => {
-    answer.push(w.trim().toUpperCase());
-    return "_____";
-  });
-  return { template, answer };
-}
-
-function TemplateEditor({
-  value,
-  onChange,
-  wordSuggestions,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  wordSuggestions: string[];
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const insertWord = (word: string) => {
-    const el = inputRef.current;
-    const insertion = `[${word}]`;
-    if (!el) { onChange(value + insertion); return; }
-    const start = el.selectionStart ?? value.length;
-    const end = el.selectionEnd ?? start;
-    const next = value.slice(0, start) + insertion + value.slice(end);
-    onChange(next);
-    requestAnimationFrame(() => {
-      el.focus();
-      const pos = start + insertion.length;
-      el.setSelectionRange(pos, pos);
-    });
-  };
-
-  const gaps = [...value.matchAll(/\[([^\]]*)\]/g)]
-    .map((m) => m[1].trim().toUpperCase())
-    .filter(Boolean);
-
-  return (
-    <div className="space-y-2">
-      <input
-        ref={inputRef}
-        className={inputCls}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="e.g. The [CANDLESTICK] was found in the [LIBRARY]."
-        autoCapitalize="none"
-        autoCorrect="off"
-        spellCheck={false}
-      />
-      {wordSuggestions.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {wordSuggestions.map((w) => (
-            <button
-              key={w}
-              type="button"
-              onClick={() => insertWord(w)}
-              className="border border-gold/25 text-muted font-mono text-xs px-2 py-0.5 hover:border-gold hover:text-gold transition-colors"
-            >
-              {w}
-            </button>
-          ))}
-        </div>
-      )}
-      {gaps.length > 0 && (
-        <p className="text-muted text-xs">
-          {gaps.length} gap{gaps.length !== 1 ? "s" : ""}:{" "}
-          <span className="text-cream font-mono">{gaps.join(" → ")}</span>
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ── Prompts Panel ──────────────────────────────────────────────────────────────
-
-const defaultPromptForm = {
-  page_id: "" as string | number,
-  question: "",
-  rich_template: "",
-  grants_flags: [] as string[],
-  grants_words: [] as string[],
-  removes_flags: [] as string[],
-  removes_words: [] as string[],
-  success_text: "",
-  sort_order: 0,
-};
-
-function PromptsPanel() {
-  const [prompts, setPrompts] = useState<Prompt[]>([]);
-  const [pages, setPages] = useState<Page[]>([]);
-  const [suggestions, setSuggestions] = useState<Suggestions>(emptySuggestions);
-  const [loading, setLoading] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<Prompt | null>(null);
-  const [form, setForm] = useState(defaultPromptForm);
-  const [saving, setSaving] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const [pr, pg, sg] = await Promise.all([
-        fetch("/api/admin/prompts").then((r) => r.json()),
-        fetch("/api/admin/pages").then((r) => r.json()),
-        fetch("/api/admin/suggestions").then((r) => r.json()),
-      ]);
-      setPrompts(Array.isArray(pr) ? pr : []);
-      setPages(Array.isArray(pg) ? pg : []);
-      if (sg && !sg.error) setSuggestions(sg);
-      if (!Array.isArray(pr)) toast.error(pr?.error ?? "Failed to load prompts");
-    } catch {
-      toast.error("Failed to load prompts");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { load(); }, []);
-
-  const pageTitle = (id: number) => pages.find((p) => p.id === id)?.title ?? `Page #${id}`;
-
-  const openCreate = () => {
-    setEditing(null);
-    setForm({ ...defaultPromptForm, page_id: pages[0]?.id ?? "" });
-    setModalOpen(true);
-  };
-
-  const openEdit = (p: Prompt) => {
-    setEditing(p);
-    setForm({
-      page_id: p.page_id,
-      question: p.question,
-      rich_template: toRichTemplate(p.template, p.answer ?? []),
-      grants_flags: p.grants_flags ?? [],
-      grants_words: p.grants_words ?? [],
-      removes_flags: p.removes_flags ?? [],
-      removes_words: p.removes_words ?? [],
-      success_text: p.success_text ?? "",
-      sort_order: p.sort_order,
-    });
-    setModalOpen(true);
-  };
-
-  const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    const { template, answer } = fromRichTemplate(form.rich_template.trim());
-    const body = {
-      page_id: Number(form.page_id),
-      question: form.question.trim(),
-      template,
-      answer,
-      grants_flags: toArr(form.grants_flags as string[]),
-      grants_words: toArr(form.grants_words as string[]),
-      removes_flags: toArr(form.removes_flags as string[]),
-      removes_words: toArr(form.removes_words as string[]),
-      success_text: form.success_text.trim() || null,
-      sort_order: form.sort_order,
-    };
-    const res = editing
-      ? await fetch(`/api/admin/prompts/${editing.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        })
-      : await fetch("/api/admin/prompts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-    if (res.ok) {
-      setModalOpen(false);
-      load();
-      toast.success(editing ? "Prompt updated" : "Prompt created");
-    } else {
-      toast.error(await getErrorMessage(res));
-    }
-    setSaving(false);
-  };
-
-  const handleDelete = async (id: number) => {
-    const res = await fetch(`/api/admin/prompts/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      load();
-      toast.success("Prompt deleted");
-    } else {
-      toast.error("Failed to delete");
-    }
-    setConfirmDelete(null);
-  };
-
-  return (
-    <>
-      <div className="flex items-center justify-between mb-5">
-        <span className="text-muted text-xs tracking-widest uppercase">
-          {prompts.length} prompt{prompts.length !== 1 ? "s" : ""}
-        </span>
-        <button
-          onClick={openCreate}
-          className="bg-gold text-ink px-4 py-2 text-xs tracking-widest uppercase font-semibold hover:bg-gold-light transition-colors"
-          style={{ fontFamily: "var(--font-family-display)" }}
-        >
-          Add Prompt
-        </button>
-      </div>
-
-      {loading ? (
-        <p className="text-muted text-sm text-center py-10">Loading…</p>
-      ) : (
-        <div className="space-y-2">
-          {prompts.map((p) => (
-            <div key={p.id} className="border border-gold/20 bg-surface p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="text-muted text-xs tracking-wide mb-1">
-                    {pageTitle(p.page_id)}
-                  </p>
-                  <p className="text-cream text-sm truncate">{p.question}</p>
-                  <p className="text-muted text-xs font-mono mt-1 truncate">
-                    {p.template}
-                  </p>
-                </div>
-                <div className="flex items-center gap-4 shrink-0">
-                  {confirmDelete === p.id ? (
-                    <span className="inline-flex items-center gap-3">
-                      <span className="text-muted text-xs">Delete?</span>
-                      <button onClick={() => handleDelete(p.id)} className="text-danger text-xs hover:underline">Yes</button>
-                      <button onClick={() => setConfirmDelete(null)} className="text-muted text-xs hover:text-cream">No</button>
-                    </span>
-                  ) : (
-                    <>
-                      <button onClick={() => openEdit(p)} className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors">Edit</button>
-                      <button onClick={() => setConfirmDelete(p.id)} className="text-muted text-xs tracking-widest uppercase hover:text-danger transition-colors">Delete</button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))}
-          {prompts.length === 0 && (
-            <p className="text-muted text-sm text-center py-10">No prompts yet.</p>
-          )}
-        </div>
-      )}
-
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? "Edit Prompt" : "Add Prompt"}>
-        <form onSubmit={handleSave}>
-          <Field label="Page">
-            <select
-              className={`${inputCls} cursor-pointer`}
-              value={form.page_id}
-              onChange={(e) => set("page_id", e.target.value)}
-              required
-            >
-              {pages.map((p) => (
-                <option key={p.id} value={p.id}>{p.title} ({p.code_phrase})</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Question" hint="Shown above the fill-in-the-gap sentence">
-            <input
-              className={inputCls}
-              value={form.question}
-              onChange={(e) => set("question", e.target.value)}
-              placeholder="Where was the body found?"
-              required
-            />
-          </Field>
-          <Field label="Template" hint="Use [WORD] to mark each gap — click a word below to insert">
-            <TemplateEditor
-              value={form.rich_template}
-              onChange={(v) => set("rich_template", v)}
-              wordSuggestions={suggestions.words}
-            />
-          </Field>
-          <Field label="Success Text" hint="Optional — shown to the player after a correct answer">
-            <textarea
-              className={`${inputCls} resize-none`}
-              rows={3}
-              value={form.success_text}
-              onChange={(e) => set("success_text", e.target.value)}
-              placeholder="Well done! You've uncovered…"
-            />
-          </Field>
-          <Field label="Grants Flags" hint="Flags awarded on correct answer">
-            <TagInput
-              values={form.grants_flags as string[]}
-              onChange={(v) => set("grants_flags", v)}
-              placeholder="e.g. solved the cipher"
-              suggestions={suggestions.flags}
-            />
-          </Field>
-          <Field label="Grants Clues" hint="Words added to inventory on correct answer">
-            <TagInput
-              values={form.grants_words as string[]}
-              onChange={(v) => set("grants_words", v)}
-              placeholder="e.g. SECRET PASSAGE"
-              suggestions={suggestions.words}
-            />
-          </Field>
-          <Field label="Removes Flags" hint="Flags stripped from the player on correct answer">
-            <TagInput
-              values={form.removes_flags as string[]}
-              onChange={(v) => set("removes_flags", v)}
-              placeholder="e.g. has alibi"
-              suggestions={suggestions.flags}
-            />
-          </Field>
-          <Field label="Removes Clues" hint="Words removed from inventory on correct answer">
-            <TagInput
-              values={form.removes_words as string[]}
-              onChange={(v) => set("removes_words", v)}
-              placeholder="e.g. SECRET PASSAGE"
-              suggestions={suggestions.words}
-            />
-          </Field>
-          <Field label="Order">
-            <input
-              className={inputCls}
-              type="number"
-              value={form.sort_order}
-              onChange={(e) => set("sort_order", parseInt(e.target.value) || 0)}
-            />
-          </Field>
-          <button type="submit" disabled={saving} className={saveBtnCls} style={{ fontFamily: "var(--font-family-display)" }}>
-            {saving ? "Saving…" : "Save"}
-          </button>
-        </form>
-      </Modal>
-    </>
-  );
-}
-
 // ── Admin Page ─────────────────────────────────────────────────────────────────
 
-const TABS = ["players", "pages", "prompts", "progress"] as const;
+const TABS = ["players", "pages", "progress"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function AdminPage() {
@@ -1443,7 +1800,6 @@ export default function AdminPage() {
       <div className="min-h-[55vh]">
         {activeTab === "players" && <PlayersPanel />}
         {activeTab === "pages" && <PagesPanel />}
-        {activeTab === "prompts" && <PromptsPanel />}
         {activeTab === "progress" && <ProgressPanel />}
       </div>
     </div>
