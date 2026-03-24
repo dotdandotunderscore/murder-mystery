@@ -82,26 +82,17 @@ function Modal({
 }) {
   useEffect(() => {
     if (!open) return;
-    document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = "";
-      document.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50">
-      <div className="fixed inset-0 bg-ink/80 animate-fade-in-fast" />
-      <div className="fixed inset-0 overflow-y-auto" onClick={onClose}>
-        <div className="flex min-h-full items-start justify-center py-8 px-4">
-      <div
-        className="relative bg-surface-3 border border-gold/30 w-full sm:max-w-lg z-10 animate-fade-in"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gold/20">
+      <div className="fixed inset-0 bg-ink/80 animate-fade-in-fast" onClick={onClose} />
+      <div className="fixed top-3 bottom-3 left-[5%] right-[5%] xl:left-[12.5%] xl:right-[12.5%] bg-surface-3 border border-gold/30 flex flex-col animate-fade-in">
+        <div className="sticky top-0 flex items-center justify-between px-6 py-4 border-b border-gold/20 bg-surface-3 shrink-0">
           <h3 className="text-xl text-cream">{title}</h3>
           <button
             onClick={onClose}
@@ -110,9 +101,7 @@ function Modal({
             ×
           </button>
         </div>
-        <div className="px-6 py-5">{children}</div>
-      </div>
-        </div>
+        <div className="px-6 py-5 overflow-y-auto flex-1">{children}</div>
       </div>
     </div>
   );
@@ -130,12 +119,12 @@ function Toggle({
       type="button"
       onClick={() => onChange(!checked)}
       className={`relative w-11 h-6 transition-colors shrink-0 ${
-        checked ? "bg-gold" : "bg-surface-2 border border-gold/30"
+        checked ? "bg-gold" : "bg-surface-2 outline outline-1 outline-gold/30"
       }`}
     >
       <span
-        className={`absolute top-1 w-4 h-4 bg-cream transition-transform ${
-          checked ? "translate-x-6" : "translate-x-1"
+        className={`absolute top-1 left-1 w-4 h-4 bg-cream transition-transform ${
+          checked ? "translate-x-5" : "translate-x-0"
         }`}
       />
     </button>
