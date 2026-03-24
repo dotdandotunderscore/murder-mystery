@@ -76,24 +76,28 @@ function AppInner() {
     }
   };
 
-  const handleScan = (value: string) => {
-    fetch("/api/pages/scan-unlock", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code_phrase: value.trim() }),
-    })
-      .then((res) => res.json().then((data: any) => ({ ok: res.ok, data })))
-      .then(({ ok, data }) => {
-        if (ok) {
-          setClue(data);
-          setCurrentPage("clue");
-          setCodeInput("");
-        } else {
-          toast.error(data.error ?? "Invalid code");
-          (data.hints ?? []).forEach((h: string) => toast.message(h));
-        }
-      })
-      .catch(() => toast.error("Something went wrong"));
+  const handleScan = async (value: string): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/pages/scan-unlock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code_phrase: value.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setClue(data);
+        setCurrentPage("clue");
+        setCodeInput("");
+        return true;
+      } else {
+        toast.error(data.error ?? "Invalid code");
+        (data.hints ?? []).forEach((h: string) => toast.message(h));
+        return false;
+      }
+    } catch {
+      toast.error("Something went wrong");
+      return false;
+    }
   };
 
   const handleBack = () => {

@@ -3,7 +3,8 @@ import { BrowserQRCodeReader } from "@zxing/browser";
 import { X } from "lucide-react";
 
 interface Props {
-  onScan: (value: string) => void;
+  /** Return true on success (scanner stays stopped), false on failure (scanner restarts). */
+  onScan: (value: string) => Promise<boolean>;
   onClose: () => void;
   /** Render as an embedded block instead of a full-screen modal */
   inline?: boolean;
@@ -12,9 +13,9 @@ interface Props {
 export default function QRScanner({ onScan, onClose, inline = false }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
-  const lastScanRef = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rotated, setRotated] = useState(false);
+  const [restartKey, setRestartKey] = useState(0);
 
   useEffect(() => {
     const reader = new BrowserQRCodeReader();
@@ -27,12 +28,10 @@ export default function QRScanner({ onScan, onClose, inline = false }: Props) {
           controlsRef.current = controls;
           if (!result) return;
           const text = result.getText();
-          // Debounce: ignore re-reads of the same code within 3 seconds so the
-          // camera stays live and the player can immediately scan a different code.
-          if (text === lastScanRef.current) return;
-          lastScanRef.current = text;
-          setTimeout(() => { lastScanRef.current = null; }, 3000);
-          onScan(text);
+          controls.stop();
+          onScan(text).then((success) => {
+            if (!success) setRestartKey((k) => k + 1);
+          });
         }
       )
       .catch(() => {
@@ -42,16 +41,18 @@ export default function QRScanner({ onScan, onClose, inline = false }: Props) {
     return () => {
       controlsRef.current?.stop();
     };
-  }, []);
+  }, [restartKey]);
 
   const handleLoadedMetadata = () => {
     const v = videoRef.current;
     if (v && v.videoWidth > v.videoHeight) {
-      // Firefox on mobile doesn't auto-correct camera stream orientation —
-      // if the stream is landscape but we're in a square/portrait container, rotate it.
-      setRotated(true);
+      setNeedsRotation(true);
     }
   };
+
+  function setNeedsRotation(val: boolean) {
+    setRotated(val);
+  }
 
   const viewfinder = (
     <div className="relative bg-black border border-gold/30 overflow-hidden aspect-square">
