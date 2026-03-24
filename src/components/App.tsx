@@ -7,7 +7,7 @@ import HomePage from "./pages/HomePage";
 import PageView from "./pages/PageView";
 import TradePanel from "./TradePanel";
 import TradeOfferModal from "./TradeOfferModal";
-import QRScanner from "./QRScanner";
+import { toast } from "sonner";
 
 interface ClueResult {
   id: number;
@@ -77,9 +77,6 @@ function AppInner() {
   };
 
   const handleScan = (value: string) => {
-    setSubmitting(true);
-    setError(null);
-    setHints([]);
     fetch("/api/pages/scan-unlock", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -92,12 +89,11 @@ function AppInner() {
           setCurrentPage("clue");
           setCodeInput("");
         } else {
-          setError(data.error ?? "Invalid code");
-          setHints(data.hints ?? []);
+          toast.error(data.error ?? "Invalid code");
+          (data.hints ?? []).forEach((h: string) => toast.message(h));
         }
       })
-      .catch(() => setError("Something went wrong"))
-      .finally(() => setSubmitting(false));
+      .catch(() => toast.error("Something went wrong"));
   };
 
   const handleBack = () => {

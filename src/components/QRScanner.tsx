@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BrowserQRCodeReader } from "@zxing/browser";
 import { X } from "lucide-react";
 
@@ -11,25 +11,25 @@ interface Props {
 
 export default function QRScanner({ onScan, onClose, inline = false }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const readerRef = useRef<BrowserQRCodeReader | null>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [rotated, setRotated] = useState(false);
 
   useEffect(() => {
     const reader = new BrowserQRCodeReader();
-    readerRef.current = reader;
 
     reader
-      .decodeFromVideoDevice(undefined, videoRef.current!, (result, err, controls) => {
-        controlsRef.current = controls;
-        if (result) {
-          controls.stop();
-          onScan(result.getText());
+      .decodeFromConstraints(
+        { video: { facingMode: "environment" } },
+        videoRef.current!,
+        (result, _err, controls) => {
+          controlsRef.current = controls;
+          if (result) {
+            controls.stop();
+            onScan(result.getText());
+          }
         }
-        if (err && !(err.message?.includes("No MultiFormat"))) {
-          // "No MultiFormat Readers" is the normal "nothing scanned yet" error — ignore it
-        }
-      })
+      )
       .catch(() => {
         setError("Camera access denied or unavailable.");
       });
@@ -39,11 +39,21 @@ export default function QRScanner({ onScan, onClose, inline = false }: Props) {
     };
   }, []);
 
+  const handleLoadedMetadata = () => {
+    const v = videoRef.current;
+    if (v && v.videoWidth > v.videoHeight) {
+      // Firefox on mobile doesn't auto-correct camera stream orientation —
+      // if the stream is landscape but we're in a square/portrait container, rotate it.
+      setRotated(true);
+    }
+  };
+
   const viewfinder = (
     <div className="relative bg-black border border-gold/30 overflow-hidden aspect-square">
       <video
         ref={videoRef}
-        className="w-full h-full object-cover"
+        onLoadedMetadata={handleLoadedMetadata}
+        className={`w-full h-full object-cover${rotated ? " rotate-90" : ""}`}
         autoPlay
         muted
         playsInline
