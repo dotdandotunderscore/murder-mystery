@@ -33,6 +33,7 @@ interface Page {
   grants_words: string[] | null;
   removes_flags: string[] | null;
   removes_words: string[] | null;
+  game_config: Record<string, unknown> | null;
   sort_order: number;
   folder_id: number | null;
 }
@@ -870,6 +871,7 @@ const defaultPageForm = {
   grants_words: [] as string[],
   removes_flags: [] as string[],
   removes_words: [] as string[],
+  game_config: {} as Record<string, unknown>,
   folder_id: null as number | null,
 };
 
@@ -965,6 +967,7 @@ function PagesPanel() {
       grants_words: c.grants_words ?? [],
       removes_flags: c.removes_flags ?? [],
       removes_words: c.removes_words ?? [],
+      game_config: (c.game_config as Record<string, unknown>) ?? {},
       folder_id: c.folder_id ?? null,
     });
     setModalOpen(true);
@@ -997,6 +1000,7 @@ function PagesPanel() {
       grants_words: toArr(form.grants_words),
       removes_flags: toArr(form.removes_flags),
       removes_words: toArr(form.removes_words),
+      game_config: Object.keys(form.game_config).length > 0 ? form.game_config : null,
       folder_id: form.folder_id ?? null,
     };
     const res = editing
@@ -1549,12 +1553,25 @@ function PagesPanel() {
               onChange={(e) => setF("page_type", e.target.value)}
             >
               <option value="text">Text</option>
-              <option value="cipher">Cipher</option>
-              <option value="safecracker">Safecracker</option>
               <option value="scanner">Scanner</option>
               <option value="scan_target">Scan Target</option>
+              <option value="coin_flip">Coin Flip</option>
             </select>
           </Field>
+          {form.page_type === "coin_flip" && (
+            <Field label="Flips Required" hint="Consecutive correct predictions to win">
+              <input
+                className={inputCls}
+                type="number"
+                min={1}
+                max={20}
+                value={(form.game_config.target as number) ?? 5}
+                onChange={(e) =>
+                  setF("game_config", { ...form.game_config, target: parseInt(e.target.value) || 5 })
+                }
+              />
+            </Field>
+          )}
           <Field label="Visible to Roles" hint="Blank = all roles">
             <TagInput
               values={form.visible_to_roles}

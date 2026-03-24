@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import PromptBlock from "../PromptBlock";
 import QRScanner from "../QRScanner";
 import RichText from "../RichText";
+import CoinFlipGame from "../CoinFlipGame";
 import { useTradeContext } from "../../context/TradeContext";
 
 interface ClueResult {
@@ -11,6 +12,7 @@ interface ClueResult {
   page_type: string;
   grants_flags: string[] | null;
   grants_words: string[] | null;
+  game_config: Record<string, unknown> | null;
 }
 
 interface Prompt {
@@ -37,7 +39,7 @@ function parseTemplate(template: string): string[] {
 
 
 export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps) {
-  const { inventory, refreshInventory } = useTradeContext();
+  const { inventory, refreshInventory, refreshFlags } = useTradeContext();
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [placements, setPlacements] = useState<Record<number, (string | null)[]>>({});
@@ -55,6 +57,7 @@ export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps
         setPlacements(init);
       });
     refreshInventory();
+    refreshFlags();
   }, [clue.id]);
 
   const placedWords = new Set<string>(
@@ -117,8 +120,18 @@ export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps
         </div>
       )}
 
-      {/* Grants panel */}
-      {hasGrants && (
+      {/* Coin flip mini-game — grants revealed on win */}
+      {clue.page_type === "coin_flip" && (
+        <CoinFlipGame
+          pageId={clue.id}
+          grantsFlags={clue.grants_flags}
+          grantsWords={clue.grants_words}
+          target={(clue.game_config?.target as number) ?? 5}
+        />
+      )}
+
+      {/* Grants panel — shown immediately for non-game page types */}
+      {clue.page_type !== "coin_flip" && hasGrants && (
         <div className="border border-gold/40 bg-gold/5 p-5 mb-6">
           <p className="text-gold text-xs tracking-[0.35em] uppercase mb-3">
             — You Received —
@@ -169,7 +182,7 @@ export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps
               selectedWord={selectedWord}
               placements={placements[prompt.id] ?? []}
               onGapClick={handleGapClick}
-              onCorrect={refreshInventory}
+              onCorrect={() => { refreshInventory(); refreshFlags(); }}
               onCode={onCode}
             />
           ))}

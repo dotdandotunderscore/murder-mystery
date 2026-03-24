@@ -73,6 +73,7 @@ export interface Page {
   grants_words: string[] | null;
   removes_flags: string[] | null;
   removes_words: string[] | null;
+  game_config: Record<string, unknown> | null;
   sort_order: number;
   folder_id: number | null;
   created_at: Date;
@@ -180,6 +181,7 @@ export async function initializeDatabase() {
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS required_flags_hints TEXT[]`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS removes_flags TEXT[]`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS removes_words TEXT[]`;
+  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS game_config JSONB`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS player_words (
@@ -344,13 +346,23 @@ export async function deletePlayer(id: number): Promise<boolean> {
 
 // --- Page functions ---
 
+// Bun.sql returns JSONB columns as raw strings, not parsed objects.
+// This helper parses game_config after every DB read.
+function parsePageRow(row: any): Page {
+  if (row && typeof row.game_config === "string") {
+    try { row.game_config = JSON.parse(row.game_config); } catch { row.game_config = null; }
+  }
+  return row as Page;
+}
+
 export async function getAllPages(): Promise<Page[]> {
-  return await sql`SELECT * FROM pages ORDER BY sort_order, created_at`;
+  const rows = await sql`SELECT * FROM pages ORDER BY sort_order, created_at`;
+  return rows.map(parsePageRow);
 }
 
 export async function getPageByCode(codePhrase: string): Promise<Page | null> {
   const rows = await sql`SELECT * FROM pages WHERE code_phrase = ${codePhrase}`;
-  return rows[0] ?? null;
+  return rows[0] ? parsePageRow(rows[0]) : null;
 }
 
 export async function getPageByCodeForPlayer(
@@ -358,7 +370,8 @@ export async function getPageByCodeForPlayer(
   playerId: number,
   playerRole: string | null
 ): Promise<Page | null> {
-  const rows = await sql<Page[]>`SELECT * FROM pages WHERE code_phrase = ${codePhrase}`;
+  const rawRows = await sql`SELECT * FROM pages WHERE code_phrase = ${codePhrase}`;
+  const rows = rawRows.map(parsePageRow) as Page[];
   if (rows.length === 0) return null;
   if (rows.length === 1) return rows[0];
 
@@ -398,6 +411,7 @@ export async function createPage(data: {
   grants_words?: string[] | null;
   removes_flags?: string[] | null;
   removes_words?: string[] | null;
+  game_config?: Record<string, unknown> | null;
   sort_order?: number;
   folder_id?: number | null;
 }): Promise<Page> {
@@ -407,7 +421,7 @@ export async function createPage(data: {
       visible_to_roles, visible_to_players,
       required_flags, required_flags_hints,
       grants_flags, grants_words,
-      removes_flags, removes_words, sort_order, folder_id
+      removes_flags, removes_words, game_config, sort_order, folder_id
     )
     VALUES (
       ${data.code_phrase.trim().toLowerCase()},
@@ -422,12 +436,13 @@ export async function createPage(data: {
       ${pgTextArray(normalizeUpper(data.grants_words))},
       ${pgTextArray(normalizeLower(data.removes_flags))},
       ${pgTextArray(normalizeUpper(data.removes_words))},
+      ${data.game_config ? JSON.stringify(data.game_config) : null},
       ${data.sort_order ?? 0},
       ${data.folder_id ?? null}
     )
     RETURNING *
   `;
-  return page;
+  return parsePageRow(page);
 }
 
 export async function updatePage(
@@ -445,6 +460,7 @@ export async function updatePage(
     grants_words?: string[] | null;
     removes_flags?: string[] | null;
     removes_words?: string[] | null;
+    game_config?: Record<string, unknown> | null;
     sort_order?: number;
     folder_id?: number | null;
   }
@@ -463,12 +479,13 @@ export async function updatePage(
       grants_words = ${pgTextArray(normalizeUpper(data.grants_words))},
       removes_flags = ${pgTextArray(normalizeLower(data.removes_flags))},
       removes_words = ${pgTextArray(normalizeUpper(data.removes_words))},
+      game_config = ${data.game_config ? JSON.stringify(data.game_config) : null},
       sort_order = ${data.sort_order ?? 0},
       folder_id = ${data.folder_id ?? null}
     WHERE id = ${id}
     RETURNING *
   `;
-  return page ?? null;
+  return page ? parsePageRow(page) : null;
 }
 
 export async function deletePage(id: number): Promise<boolean> {
