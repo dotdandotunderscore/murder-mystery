@@ -92,8 +92,17 @@ function AppInner() {
         setCurrentPage("clue");
         setCodeInput("");
       } else {
-        toast.error(data.error ?? "Invalid code");
-        (data.hints ?? []).forEach((h: string) => toast.message(h));
+        const hints: string[] = data.hints ?? [];
+        const id = toast.error(data.error ?? "Invalid code", {
+          description: hints.length > 0 ? (
+            <div className="flex flex-col gap-1 mt-1">
+              {hints.map((h, i) => (
+                <em key={i}><RichText text={h} onCode={(phrase) => { toast.dismiss(id); handleCode(phrase); }} /></em>
+              ))}
+            </div>
+          ) : undefined,
+          duration: 8000,
+        });
       }
     } catch {
       toast.error("Something went wrong");
@@ -114,8 +123,17 @@ function AppInner() {
         setCodeInput("");
         return true;
       } else {
-        toast.error(data.error ?? "Invalid code");
-        (data.hints ?? []).forEach((h: string) => toast.message(h));
+        const hints: string[] = data.hints ?? [];
+        const id = toast.error(data.error ?? "Invalid code", {
+          description: hints.length > 0 ? (
+            <div className="flex flex-col gap-1 mt-1">
+              {hints.map((h, i) => (
+                <em key={i}><RichText text={h} onCode={(phrase) => { toast.dismiss(id); handleCode(phrase); }} /></em>
+              ))}
+            </div>
+          ) : undefined,
+          duration: 8000,
+        });
         return false;
       }
     } catch {

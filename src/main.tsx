@@ -12,6 +12,7 @@ const app = (
     </PlayerProvider>
     <Toaster
       theme="dark"
+      position="top-center"
       toastOptions={{
         style: {
           background: "#2e2d50",
