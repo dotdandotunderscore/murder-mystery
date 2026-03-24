@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import PromptBlock from "../PromptBlock";
+import QRScanner from "../QRScanner";
 import { useTradeContext } from "../../context/TradeContext";
 
 interface ClueResult {
@@ -25,6 +26,7 @@ interface Prompt {
 interface PageViewProps {
   clue: ClueResult;
   onBack: () => void;
+  onScan?: (value: string) => void;
 }
 
 function parseTemplate(template: string): string[] {
@@ -47,7 +49,7 @@ function highlightText(text: string, terms: string[]): React.ReactNode {
   );
 }
 
-export default function PageView({ clue, onBack }: PageViewProps) {
+export default function PageView({ clue, onBack, onScan }: PageViewProps) {
   const { inventory, refreshInventory } = useTradeContext();
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
@@ -117,6 +119,16 @@ export default function PageView({ clue, onBack }: PageViewProps) {
           </button>
         </div>
       </div>
+
+      {/* Inline QR scanner for scanner-type pages */}
+      {clue.page_type === "scanner" && onScan && (
+        <div className="border border-gold/25 bg-surface p-6 mb-6">
+          <p className="text-gold text-xs tracking-[0.35em] uppercase mb-4">
+            — Scan a Code —
+          </p>
+          <QRScanner inline onScan={onScan} onClose={() => {}} />
+        </div>
+      )}
 
       {/* Grants panel */}
       {hasGrants && (

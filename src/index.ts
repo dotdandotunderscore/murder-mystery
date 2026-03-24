@@ -87,6 +87,58 @@ function json(data: unknown, status = 200, extraHeaders?: Record<string, string>
   });
 }
 
+// Shared unlock logic used by both /api/pages/unlock and /api/pages/scan-unlock.
+// scanned=true means the request came via QR scan (scanned_<phrase> already granted).
+async function unlockPage(player: Player, codePhrase: string, scanned: boolean): Promise<Response> {
+  if (!codePhrase) return json({ error: "Unknown code" }, 404);
+
+  const page = await getPageByCodeForPlayer(codePhrase, player.id, player.role ?? null);
+  if (!page) return json({ error: "Unknown code" }, 404);
+
+  // For scan_target pages, implicitly require scanned_<phrase> and remove it on success.
+  const autoFlag = page.page_type === "scan_target" ? `scanned_${codePhrase}` : null;
+
+  const effectiveRequired = autoFlag
+    ? [...(page.required_flags ?? []), autoFlag]
+    : (page.required_flags ?? []);
+
+  // Required flags check
+  if (effectiveRequired.length > 0) {
+    const playerFlags = await getPlayerFlags(player.id);
+    const playerFlagsLower = playerFlags.map((f) => f.toLowerCase());
+    // Hints only apply to the explicit required_flags (not the auto flag)
+    const missingHints = (page.required_flags ?? [])
+      .map((f, i) => ({ missing: !playerFlagsLower.includes(f.toLowerCase()), hint: page.required_flags_hints?.[i] ?? "" }))
+      .filter((x) => x.missing && x.hint)
+      .map((x) => x.hint);
+    const allPresent = effectiveRequired.every((f) => playerFlagsLower.includes(f.toLowerCase()));
+    if (!allPresent) {
+      return json({ error: "You're missing a prerequisite", hints: missingHints.length > 0 ? missingHints : undefined }, 403);
+    }
+  }
+
+  // Grant flags and words
+  if (page.grants_flags && page.grants_flags.length > 0) {
+    await grantPlayerFlags(player.id, page.grants_flags);
+  }
+  if (page.grants_words && page.grants_words.length > 0) {
+    await grantPlayerWords(player.id, page.grants_words);
+  }
+  // Remove flags and words
+  const effectiveRemoves = autoFlag
+    ? [...(page.removes_flags ?? []), autoFlag]
+    : (page.removes_flags ?? []);
+  if (effectiveRemoves.length > 0) {
+    await removePlayerFlags(player.id, effectiveRemoves);
+  }
+  if (page.removes_words && page.removes_words.length > 0) {
+    await removePlayerWordsByText(player.id, page.removes_words);
+  }
+
+  const { visible_to_roles, visible_to_players, required_flags, removes_flags, removes_words, ...pageData } = page;
+  return json(pageData);
+}
+
 let server: ReturnType<typeof Bun.serve>;
 server = Bun.serve({
   routes: {
@@ -131,40 +183,26 @@ server = Bun.serve({
 
         const body = (await req.json()) as { code_phrase: string };
         const codePhrase = body.code_phrase?.trim()?.toLowerCase();
-        const page = await getPageByCodeForPlayer(codePhrase, player.id, player.role ?? null);
-        if (!page) return json({ error: "Unknown code" }, 404);
+        return unlockPage(player, codePhrase, false);
+      },
+    },
 
-        // Required flags check
-        if (page.required_flags && page.required_flags.length > 0) {
-          const playerFlags = await getPlayerFlags(player.id);
-          const playerFlagsLower = playerFlags.map((f) => f.toLowerCase());
-          const missingHints = page.required_flags
-            .map((f, i) => ({ missing: !playerFlagsLower.includes(f.toLowerCase()), hint: page.required_flags_hints?.[i] ?? "" }))
-            .filter((x) => x.missing && x.hint)
-            .map((x) => x.hint);
-          const allPresent = page.required_flags.every((f) => playerFlagsLower.includes(f.toLowerCase()));
-          if (!allPresent) {
-            return json({ error: "You're missing a prerequisite", hints: missingHints.length > 0 ? missingHints : undefined }, 403);
-          }
-        }
+    // --- QR scan unlock (grants scanned_<phrase> flag before unlock check) ---
 
-        // Grant flags and words
-        if (page.grants_flags && page.grants_flags.length > 0) {
-          await grantPlayerFlags(player.id, page.grants_flags);
-        }
-        if (page.grants_words && page.grants_words.length > 0) {
-          await grantPlayerWords(player.id, page.grants_words);
-        }
-        // Remove flags and words
-        if (page.removes_flags && page.removes_flags.length > 0) {
-          await removePlayerFlags(player.id, page.removes_flags);
-        }
-        if (page.removes_words && page.removes_words.length > 0) {
-          await removePlayerWordsByText(player.id, page.removes_words);
-        }
+    "/api/pages/scan-unlock": {
+      POST: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
 
-        const { visible_to_roles, visible_to_players, required_flags, removes_flags, removes_words, ...pageData } = page;
-        return json(pageData);
+        const body = (await req.json()) as { code_phrase: string };
+        const codePhrase = body.code_phrase?.trim()?.toLowerCase();
+        if (!codePhrase) return json({ error: "Unknown code" }, 404);
+
+        // Grant the scanned flag before the required-flags check so pages can
+        // use required_flags: ["scanned_<phrase>"] to block manual entry.
+        await grantPlayerFlags(player.id, [`scanned_${codePhrase}`]);
+
+        return unlockPage(player, codePhrase, true);
       },
     },
 

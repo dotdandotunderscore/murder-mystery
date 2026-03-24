@@ -1557,6 +1557,8 @@ function PagesPanel() {
               <option value="text">Text</option>
               <option value="cipher">Cipher</option>
               <option value="safecracker">Safecracker</option>
+              <option value="scanner">Scanner</option>
+              <option value="scan_target">Scan Target</option>
             </select>
           </Field>
           <Field label="Visible to Roles" hint="Blank = all roles">

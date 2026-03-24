@@ -7,6 +7,7 @@ import HomePage from "./pages/HomePage";
 import PageView from "./pages/PageView";
 import TradePanel from "./TradePanel";
 import TradeOfferModal from "./TradeOfferModal";
+import QRScanner from "./QRScanner";
 
 interface ClueResult {
   id: number;
@@ -75,6 +76,30 @@ function AppInner() {
     }
   };
 
+  const handleScan = (value: string) => {
+    setSubmitting(true);
+    setError(null);
+    setHints([]);
+    fetch("/api/pages/scan-unlock", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code_phrase: value.trim() }),
+    })
+      .then((res) => res.json().then((data: any) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (ok) {
+          setClue(data);
+          setCurrentPage("clue");
+          setCodeInput("");
+        } else {
+          setError(data.error ?? "Invalid code");
+          setHints(data.hints ?? []);
+        }
+      })
+      .catch(() => setError("Something went wrong"))
+      .finally(() => setSubmitting(false));
+  };
+
   const handleBack = () => {
     setCurrentPage(null);
     setClue(null);
@@ -87,7 +112,7 @@ function AppInner() {
     if (currentPage === "admin" && player.is_admin) return <AdminPage />;
 
     if (currentPage === "clue" && clue) {
-      return <PageView clue={clue} onBack={handleBack} />;
+      return <PageView clue={clue} onBack={handleBack} onScan={handleScan} />;
     }
 
     return <HomePage />;
