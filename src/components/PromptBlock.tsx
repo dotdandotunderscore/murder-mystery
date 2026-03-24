@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import RichText from "./RichText";
 
 interface Prompt {
   id: number;
@@ -18,6 +19,7 @@ interface PromptBlockProps {
   onGapClick: (promptId: number, gapIndex: number, currentWord: string | null) => void;
   placements: (string | null)[];
   onCorrect?: () => void;
+  onCode?: (phrase: string) => void;
 }
 
 // Splits a template string on "_____" (5 underscores) into text segments.
@@ -26,21 +28,6 @@ function parseTemplate(template: string): string[] {
   return template.split("_____");
 }
 
-function highlightText(text: string, terms: string[]): React.ReactNode {
-  if (!terms.length || !text) return text;
-  const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
-  const parts = text.split(pattern);
-  return parts.map((part, i) =>
-    terms.some((t) => t.toLowerCase() === part.toLowerCase()) ? (
-      <span key={i} className="text-gold font-semibold">
-        {part}
-      </span>
-    ) : (
-      part
-    )
-  );
-}
 
 export default function PromptBlock({
   prompt,
@@ -48,6 +35,7 @@ export default function PromptBlock({
   onGapClick,
   placements,
   onCorrect,
+  onCode,
 }: PromptBlockProps) {
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(prompt.completed);
@@ -113,7 +101,7 @@ export default function PromptBlock({
         </div>
         {successText && (
           <p className="text-cream text-sm mt-3 leading-relaxed">
-            {highlightText(successText, highlightTerms)}
+            <RichText text={successText} highlights={highlightTerms} onCode={onCode} />
           </p>
         )}
         {hasRewardGrants && (

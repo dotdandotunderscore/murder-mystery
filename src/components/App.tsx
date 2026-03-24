@@ -8,6 +8,7 @@ import PageView from "./pages/PageView";
 import TradePanel from "./TradePanel";
 import TradeOfferModal from "./TradeOfferModal";
 import { toast } from "sonner";
+import RichText from "./RichText";
 
 interface ClueResult {
   id: number;
@@ -76,6 +77,29 @@ function AppInner() {
     }
   };
 
+  // Called from inline [[code-phrase]] links inside page content / prompt success text.
+  // Uses toasts for errors since the inline error UI isn't visible from within a page view.
+  const handleCode = async (phrase: string) => {
+    try {
+      const res = await fetch("/api/pages/unlock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code_phrase: phrase.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setClue(data);
+        setCurrentPage("clue");
+        setCodeInput("");
+      } else {
+        toast.error(data.error ?? "Invalid code");
+        (data.hints ?? []).forEach((h: string) => toast.message(h));
+      }
+    } catch {
+      toast.error("Something went wrong");
+    }
+  };
+
   const handleScan = async (value: string): Promise<boolean> => {
     try {
       const res = await fetch("/api/pages/scan-unlock", {
@@ -112,7 +136,7 @@ function AppInner() {
     if (currentPage === "admin" && player.is_admin) return <AdminPage />;
 
     if (currentPage === "clue" && clue) {
-      return <PageView clue={clue} onBack={handleBack} onScan={handleScan} />;
+      return <PageView clue={clue} onBack={handleBack} onScan={handleScan} onCode={handleCode} />;
     }
 
     return <HomePage />;
@@ -122,7 +146,7 @@ function AppInner() {
     <div className="min-h-screen bg-ink">
       {/* Header */}
       <header className="border-b border-gold/20 px-6 py-4">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+        <div className="max-w-[90%] xl:max-w-[75%] mx-auto flex items-center justify-between">
           <span className="text-muted text-xs tracking-widest uppercase">
             {player.name}
             {player.role ? (
@@ -167,7 +191,7 @@ function AppInner() {
 
       {/* Main */}
       <main
-        className="max-w-2xl mx-auto px-6 pt-10"
+        className="max-w-[90%] xl:max-w-[75%] mx-auto px-6 pt-10"
         style={{ paddingBottom: "max(2.5rem, env(safe-area-inset-bottom, 0px))" }}
       >
         {/* Code entry — only on home */}
@@ -202,7 +226,9 @@ function AppInner() {
               <p className="text-danger text-sm mt-3">{error}</p>
             )}
             {hints.map((h, i) => (
-              <p key={i} className="text-muted text-sm mt-1 italic">{h}</p>
+              <p key={i} className="text-muted text-sm mt-1 italic">
+                <RichText text={h} onCode={handleCode} />
+              </p>
             ))}
           </div>
         )}

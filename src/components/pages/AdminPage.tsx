@@ -81,22 +81,26 @@ function Modal({
   children: React.ReactNode;
 }) {
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = ""; };
-    }
+    if (!open) return;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = "";
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50">
-      <div
-        className="fixed inset-0 bg-ink/80 animate-fade-in-fast"
-        onClick={onClose}
-      />
-      <div className="fixed inset-0 overflow-y-auto">
+      <div className="fixed inset-0 bg-ink/80 animate-fade-in-fast" />
+      <div className="fixed inset-0 overflow-y-auto" onClick={onClose}>
         <div className="flex min-h-full items-start justify-center py-8 px-4">
-      <div className="relative bg-surface-3 border border-gold/30 w-full sm:max-w-lg z-10 animate-fade-in">
+      <div
+        className="relative bg-surface-3 border border-gold/30 w-full sm:max-w-lg z-10 animate-fade-in"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-gold/20">
           <h3 className="text-xl text-cream">{title}</h3>
           <button
@@ -805,7 +809,7 @@ function PromptModal({ open, onClose, editing, presetPageId, pages, suggestions,
             wordSuggestions={suggestions.words}
           />
         </Field>
-        <Field label="Success Text" hint="Optional — shown to the player after a correct answer">
+        <Field label="Success Text" hint="Optional — shown after a correct answer. Use [[code-phrase]] for clickable links.">
           <textarea
             className={`${inputCls} resize-none`}
             rows={3}
@@ -1350,8 +1354,9 @@ function PagesPanel() {
                   {pagePrompts.map((prompt) => (
                     <div
                       key={`pr-${prompt.id}`}
-                      className="flex items-center gap-2 py-1 group hover:bg-surface-2/50 transition-colors"
+                      className="flex items-center gap-2 py-1 group hover:bg-surface-2/50 transition-colors cursor-pointer"
                       style={{ paddingLeft: (depth + 1) * 16 + 8, paddingRight: 8 }}
+                      onDoubleClick={() => setPromptModal({ open: true, editing: prompt, presetPageId: page.id })}
                     >
                       <span className="text-muted text-xs w-4 shrink-0 text-center">↳</span>
                       <div className="flex-1 min-w-0">
@@ -1539,7 +1544,7 @@ function PagesPanel() {
               ))}
             </select>
           </Field>
-          <Field label="Content">
+          <Field label="Content" hint="Use [[code-phrase]] to insert a clickable link to another page">
             <textarea
               className={`${inputCls} resize-none`}
               rows={5}
@@ -1577,7 +1582,7 @@ function PagesPanel() {
               suggestions={suggestions.players.map((p) => p.name)}
             />
           </Field>
-          <Field label="Required Flags" hint="Player must have all of these to unlock — add a hint to guide them if they're missing one">
+          <Field label="Required Flags" hint="Player must have all of these to unlock — hint text supports [[code-phrase]] links">
             <RequiredFlagsEditor
               flags={form.required_flags}
               hints={form.required_flags_hints}

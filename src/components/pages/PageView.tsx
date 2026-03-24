@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import PromptBlock from "../PromptBlock";
 import QRScanner from "../QRScanner";
+import RichText from "../RichText";
 import { useTradeContext } from "../../context/TradeContext";
 
 interface ClueResult {
@@ -26,30 +27,16 @@ interface Prompt {
 interface PageViewProps {
   clue: ClueResult;
   onBack: () => void;
-  onScan?: (value: string) => void;
+  onScan?: (value: string) => Promise<boolean>;
+  onCode?: (phrase: string) => void;
 }
 
 function parseTemplate(template: string): string[] {
   return template.split("_____");
 }
 
-function highlightText(text: string, terms: string[]): React.ReactNode {
-  if (!terms.length || !text) return text;
-  const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
-  const parts = text.split(pattern);
-  return parts.map((part, i) =>
-    terms.some((t) => t.toLowerCase() === part.toLowerCase()) ? (
-      <span key={i} className="text-gold font-semibold">
-        {part}
-      </span>
-    ) : (
-      part
-    )
-  );
-}
 
-export default function PageView({ clue, onBack, onScan }: PageViewProps) {
+export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps) {
   const { inventory, refreshInventory } = useTradeContext();
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
@@ -108,7 +95,7 @@ export default function PageView({ clue, onBack, onScan }: PageViewProps) {
         <h2 className="text-3xl text-cream mb-5">{clue.title}</h2>
         <div className="h-px bg-gold/25 mb-6" />
         <p className="text-cream leading-relaxed whitespace-pre-wrap text-lg">
-          {highlightText(clue.content, highlightTerms)}
+          <RichText text={clue.content} highlights={highlightTerms} onCode={onCode} />
         </p>
         <div className="flex justify-end mt-6">
           <button
@@ -183,6 +170,7 @@ export default function PageView({ clue, onBack, onScan }: PageViewProps) {
               placements={placements[prompt.id] ?? []}
               onGapClick={handleGapClick}
               onCorrect={refreshInventory}
+              onCode={onCode}
             />
           ))}
         </div>
