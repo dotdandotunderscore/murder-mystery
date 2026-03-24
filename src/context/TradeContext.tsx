@@ -17,6 +17,7 @@ export interface Trade {
 export interface TradePlayer {
   id: number;
   name: string;
+  role: string | null;
   team: string | null;
 }
 

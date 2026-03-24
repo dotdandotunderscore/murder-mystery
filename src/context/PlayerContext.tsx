@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 export interface Player {
   id: number;
   name: string;
+  role: string | null;
   team: string | null;
   is_admin: boolean;
   created_at: string;

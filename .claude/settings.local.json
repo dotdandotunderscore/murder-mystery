@@ -4,7 +4,8 @@
       "Bash(bun install:*)",
       "mcp__ide__getDiagnostics",
       "Bash(~/.bun/bin/bun remove:*)",
-      "Bash(~/.bun/bin/bun add:*)"
+      "Bash(~/.bun/bin/bun add:*)",
+      "Bash(bun add:*)"
     ]
   }
 }

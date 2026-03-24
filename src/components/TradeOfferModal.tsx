@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useTradeContext } from "../context/TradeContext";
 import { toast } from "sonner";
 
-type PlayerWithWordStatus = { id: number; name: string; team: string | null; has_word: boolean };
+type PlayerWithWordStatus = { id: number; name: string; role: string | null; team: string | null; has_word: boolean };
 
 export default function TradeOfferModal() {
   const { offerWord, setOfferWord, players, createOffer, setPanelOpen } = useTradeContext();
@@ -89,8 +89,8 @@ export default function TradeOfferModal() {
                         }`}
                       >
                         <span className="text-sm">{p.name}</span>
-                        {p.team && (
-                          <span className="text-muted text-xs ml-2">({p.team})</span>
+                        {p.role && (
+                          <span className="text-muted text-xs ml-2">({p.role})</span>
                         )}
                         {p.has_word && (
                           <span className="text-muted text-xs ml-2 italic">already has this</span>

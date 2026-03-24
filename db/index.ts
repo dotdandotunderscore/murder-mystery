@@ -39,6 +39,7 @@ export interface Player {
   id: number;
   name: string;
   pin: string;
+  role: string | null;
   team: string | null;
   is_admin: boolean;
   created_at: Date;
@@ -64,7 +65,7 @@ export interface Page {
   title: string;
   content: string;
   page_type: string;
-  visible_to_teams: string[] | null;
+  visible_to_roles: string[] | null;
   visible_to_players: number[] | null;
   required_flags: string[] | null;
   required_flags_hints: string[] | null;
@@ -131,6 +132,7 @@ export async function initializeDatabase() {
       id SERIAL PRIMARY KEY,
       name TEXT UNIQUE NOT NULL,
       pin TEXT NOT NULL,
+      role TEXT,
       team TEXT,
       is_admin BOOLEAN DEFAULT false,
       created_at TIMESTAMPTZ DEFAULT NOW()
@@ -153,7 +155,7 @@ export async function initializeDatabase() {
       title TEXT NOT NULL,
       content TEXT DEFAULT '',
       page_type TEXT DEFAULT 'text',
-      visible_to_teams TEXT[],
+      visible_to_roles TEXT[],
       visible_to_players INT[],
       required_flags TEXT[],
       grants_flags TEXT[],
@@ -241,6 +243,13 @@ export async function initializeDatabase() {
   `;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS folder_id INT REFERENCES page_folders(id) ON DELETE SET NULL`;
 
+  // Rename team→role on players (idempotent: ignore error if already done or column absent)
+  try { await sql`ALTER TABLE players RENAME COLUMN team TO role`; } catch {}
+  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS team TEXT`;
+
+  // Rename visible_to_teams→visible_to_roles on pages (idempotent)
+  try { await sql`ALTER TABLE pages RENAME COLUMN visible_to_teams TO visible_to_roles`; } catch {}
+
   // Seed initial admin if none exists
   const adminCount = await sql`SELECT COUNT(*) as count FROM players WHERE is_admin = true`;
   if (Number(adminCount[0].count) === 0) {
@@ -299,12 +308,13 @@ export async function getAllPlayers(): Promise<Player[]> {
 export async function createPlayer(
   name: string,
   pin: string,
+  role: string | null,
   team: string | null,
   isAdmin: boolean
 ): Promise<Player> {
   const [player] = await sql`
-    INSERT INTO players (name, pin, team, is_admin)
-    VALUES (${name}, ${pin}, ${team?.trim().toLowerCase() ?? null}, ${isAdmin})
+    INSERT INTO players (name, pin, role, team, is_admin)
+    VALUES (${name}, ${pin}, ${role?.trim().toLowerCase() ?? null}, ${team?.trim().toLowerCase() ?? null}, ${isAdmin})
     RETURNING *
   `;
   return player;
@@ -314,12 +324,13 @@ export async function updatePlayer(
   id: number,
   name: string,
   pin: string,
+  role: string | null,
   team: string | null,
   isAdmin: boolean
 ): Promise<Player | null> {
   const [player] = await sql`
     UPDATE players
-    SET name = ${name}, pin = ${pin}, team = ${team?.trim().toLowerCase() ?? null}, is_admin = ${isAdmin}
+    SET name = ${name}, pin = ${pin}, role = ${role?.trim().toLowerCase() ?? null}, team = ${team?.trim().toLowerCase() ?? null}, is_admin = ${isAdmin}
     WHERE id = ${id}
     RETURNING *
   `;
@@ -345,13 +356,13 @@ export async function getPageByCode(codePhrase: string): Promise<Page | null> {
 export async function getPageByCodeForPlayer(
   codePhrase: string,
   playerId: number,
-  playerTeam: string | null
+  playerRole: string | null
 ): Promise<Page | null> {
   const rows = await sql<Page[]>`SELECT * FROM pages WHERE code_phrase = ${codePhrase}`;
   if (rows.length === 0) return null;
   if (rows.length === 1) return rows[0];
 
-  const team = playerTeam?.toLowerCase() ?? null;
+  const role = playerRole?.toLowerCase() ?? null;
 
   // Priority 1: explicitly listed for this player
   const playerSpecific = rows.find(
@@ -359,18 +370,18 @@ export async function getPageByCodeForPlayer(
   );
   if (playerSpecific) return playerSpecific;
 
-  // Priority 2: listed for this player's team (and not player-restricted)
-  const teamSpecific = rows.find(
+  // Priority 2: listed for this player's role (and not player-restricted)
+  const roleSpecific = rows.find(
     (p) =>
       !p.visible_to_players &&
-      team &&
-      p.visible_to_teams &&
-      p.visible_to_teams.map((t) => t.toLowerCase()).includes(team)
+      role &&
+      p.visible_to_roles &&
+      p.visible_to_roles.map((r) => r.toLowerCase()).includes(role)
   );
-  if (teamSpecific) return teamSpecific;
+  if (roleSpecific) return roleSpecific;
 
   // Priority 3: open to all (no restrictions)
-  const open = rows.find((p) => !p.visible_to_players && !p.visible_to_teams);
+  const open = rows.find((p) => !p.visible_to_players && !p.visible_to_roles);
   return open ?? null;
 }
 
@@ -379,7 +390,7 @@ export async function createPage(data: {
   title: string;
   content?: string;
   page_type?: string;
-  visible_to_teams?: string[] | null;
+  visible_to_roles?: string[] | null;
   visible_to_players?: number[] | null;
   required_flags?: string[] | null;
   required_flags_hints?: string[] | null;
@@ -393,7 +404,7 @@ export async function createPage(data: {
   const [page] = await sql`
     INSERT INTO pages (
       code_phrase, title, content, page_type,
-      visible_to_teams, visible_to_players,
+      visible_to_roles, visible_to_players,
       required_flags, required_flags_hints,
       grants_flags, grants_words,
       removes_flags, removes_words, sort_order, folder_id
@@ -403,7 +414,7 @@ export async function createPage(data: {
       ${data.title},
       ${data.content ?? ""},
       ${data.page_type ?? "text"},
-      ${pgTextArray(normalizeLower(data.visible_to_teams))},
+      ${pgTextArray(normalizeLower(data.visible_to_roles))},
       ${pgIntArray(data.visible_to_players)},
       ${pgTextArray(normalizeLower(data.required_flags))},
       ${pgTextArray(normalizeHints(data.required_flags_hints))},
@@ -426,7 +437,7 @@ export async function updatePage(
     title: string;
     content?: string;
     page_type?: string;
-    visible_to_teams?: string[] | null;
+    visible_to_roles?: string[] | null;
     visible_to_players?: number[] | null;
     required_flags?: string[] | null;
     required_flags_hints?: string[] | null;
@@ -444,7 +455,7 @@ export async function updatePage(
       title = ${data.title},
       content = ${data.content ?? ""},
       page_type = ${data.page_type ?? "text"},
-      visible_to_teams = ${pgTextArray(normalizeLower(data.visible_to_teams))},
+      visible_to_roles = ${pgTextArray(normalizeLower(data.visible_to_roles))},
       visible_to_players = ${pgIntArray(data.visible_to_players)},
       required_flags = ${pgTextArray(normalizeLower(data.required_flags))},
       required_flags_hints = ${pgTextArray(normalizeHints(data.required_flags_hints))},
@@ -728,16 +739,16 @@ export async function getPlayerActiveTrades(playerId: number): Promise<Trade[]> 
 export async function getPlayersWithWordStatus(
   excludeId: number,
   word: string
-): Promise<{ id: number; name: string; team: string | null; has_word: boolean }[]> {
+): Promise<{ id: number; name: string; role: string | null; team: string | null; has_word: boolean }[]> {
   const upper = word.trim().toUpperCase();
   const rows = await sql`
-    SELECT p.id, p.name, p.team, (pw.id IS NOT NULL) AS has_word
+    SELECT p.id, p.name, p.role, p.team, (pw.id IS NOT NULL) AS has_word
     FROM players p
     LEFT JOIN player_words pw ON pw.player_id = p.id AND pw.word = ${upper}
     WHERE p.id != ${excludeId}
     ORDER BY p.name
   `;
-  return rows.map((r: { id: number; name: string; team: string | null; has_word: unknown }) => ({
+  return rows.map((r: { id: number; name: string; role: string | null; team: string | null; has_word: unknown }) => ({
     ...r,
     has_word: Boolean(r.has_word),
   }));

@@ -100,6 +100,9 @@ function AppInner() {
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <span className="text-muted text-xs tracking-widest uppercase">
             {player.name}
+            {player.role ? (
+              <span className="text-muted/60"> · {player.role}</span>
+            ) : null}
             {player.team ? (
               <span className="text-muted/60"> · {player.team}</span>
             ) : null}

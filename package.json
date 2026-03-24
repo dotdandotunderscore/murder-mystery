@@ -9,6 +9,8 @@
     "build": "bun run build.ts"
   },
   "dependencies": {
+    "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.3",
     "bun-plugin-tailwind": "^0.0.15",
     "lucide-react": "^0.525.0",
     "react": "^19",

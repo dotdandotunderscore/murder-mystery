@@ -131,7 +131,7 @@ server = Bun.serve({
 
         const body = (await req.json()) as { code_phrase: string };
         const codePhrase = body.code_phrase?.trim()?.toLowerCase();
-        const page = await getPageByCodeForPlayer(codePhrase, player.id, player.team ?? null);
+        const page = await getPageByCodeForPlayer(codePhrase, player.id, player.role ?? null);
         if (!page) return json({ error: "Unknown code" }, 404);
 
         // Required flags check
@@ -163,7 +163,7 @@ server = Bun.serve({
           await removePlayerWordsByText(player.id, page.removes_words);
         }
 
-        const { visible_to_teams, visible_to_players, required_flags, removes_flags, removes_words, ...pageData } = page;
+        const { visible_to_roles, visible_to_players, required_flags, removes_flags, removes_words, ...pageData } = page;
         return json(pageData);
       },
     },
@@ -183,12 +183,14 @@ server = Bun.serve({
         const body = (await req.json()) as {
           name: string;
           pin: string;
+          role?: string;
           team?: string;
           is_admin?: boolean;
         };
         const newPlayer = await createPlayer(
           body.name,
           body.pin,
+          body.role?.trim() || null,
           body.team?.trim() || null,
           body.is_admin ?? false
         );
@@ -204,6 +206,7 @@ server = Bun.serve({
         const body = (await req.json()) as {
           name: string;
           pin?: string;
+          role?: string;
           team?: string;
           is_admin?: boolean;
         };
@@ -220,6 +223,7 @@ server = Bun.serve({
           id,
           body.name,
           pin,
+          body.role?.trim() || null,
           body.team?.trim() || null,
           body.is_admin ?? false
         );
@@ -449,7 +453,7 @@ server = Bun.serve({
 
         const flags = new Set<string>();
         const words = new Set<string>();
-        const teams = new Set<string>();
+        const roles = new Set<string>();
 
         for (const c of pages) {
           c.required_flags?.forEach((f) => flags.add(f));
@@ -465,13 +469,13 @@ server = Bun.serve({
           p.removes_words?.forEach((w) => words.add(w));
         }
         for (const p of players) {
-          if (p.team) teams.add(p.team);
+          if (p.role) roles.add(p.role);
         }
 
         return json({
           flags: [...flags].sort(),
           words: [...words].sort(),
-          teams: [...teams].sort(),
+          roles: [...roles].sort(),
           players: players.map((p) => ({ id: p.id, name: p.name })),
         });
       },
@@ -510,7 +514,7 @@ server = Bun.serve({
         return json(
           all
             .filter((p) => p.id !== player.id)
-            .map((p) => ({ id: p.id, name: p.name, team: p.team }))
+            .map((p) => ({ id: p.id, name: p.name, role: p.role, team: p.team }))
         );
       },
     },

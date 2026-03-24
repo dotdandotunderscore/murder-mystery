@@ -6,6 +6,7 @@ import { toast } from "sonner";
 interface Player {
   id: number;
   name: string;
+  role: string | null;
   team: string | null;
   is_admin: boolean;
   created_at: string;
@@ -24,7 +25,7 @@ interface Page {
   title: string;
   content: string;
   page_type: string;
-  visible_to_teams: string[] | null;
+  visible_to_roles: string[] | null;
   visible_to_players: number[] | null;
   required_flags: string[] | null;
   required_flags_hints: string[] | null;
@@ -166,7 +167,7 @@ const saveBtnCls =
 
 // ── Players Panel ──────────────────────────────────────────────────────────────
 
-const defaultPlayerForm = { name: "", pin: "", team: "", is_admin: false };
+const defaultPlayerForm = { name: "", pin: "", role: "", team: "", is_admin: false };
 
 function PlayersPanel() {
   const [players, setPlayers] = useState<Player[]>([]);
@@ -194,7 +195,7 @@ function PlayersPanel() {
 
   const openEdit = (p: Player) => {
     setEditing(p);
-    setForm({ name: p.name, pin: "", team: p.team ?? "", is_admin: p.is_admin });
+    setForm({ name: p.name, pin: "", role: p.role ?? "", team: p.team ?? "", is_admin: p.is_admin });
     setModalOpen(true);
   };
 
@@ -206,6 +207,7 @@ function PlayersPanel() {
     const body = {
       name: form.name.trim(),
       pin: form.pin.trim(),
+      role: form.role.trim() || null,
       team: form.team.trim() || null,
       is_admin: form.is_admin,
     };
@@ -263,7 +265,7 @@ function PlayersPanel() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gold/20">
-                {["Name", "Team", "Role", ""].map((h) => (
+                {["Name", "Role", "Team", ""].map((h) => (
                   <th
                     key={h}
                     className="text-left text-gold text-xs tracking-widest uppercase font-normal py-3 pr-4"
@@ -276,15 +278,14 @@ function PlayersPanel() {
             <tbody>
               {players.map((p) => (
                 <tr key={p.id} className="border-b border-gold/10">
-                  <td className="py-3 pr-4 text-cream">{p.name}</td>
-                  <td className="py-3 pr-4 text-muted">{p.team ?? "—"}</td>
-                  <td className="py-3 pr-4">
+                  <td className="py-3 pr-4 text-cream">
+                    {p.name}
                     {p.is_admin && (
-                      <span className="text-gold text-xs tracking-widest">
-                        Admin
-                      </span>
+                      <span className="text-gold text-xs tracking-widest ml-2">Admin</span>
                     )}
                   </td>
+                  <td className="py-3 pr-4 text-muted">{p.role ?? "—"}</td>
+                  <td className="py-3 pr-4 text-muted">{p.team ?? "—"}</td>
                   <td className="py-3 text-right whitespace-nowrap">
                     {confirmDelete === p.id ? (
                       <span className="inline-flex items-center gap-3">
@@ -363,7 +364,15 @@ function PlayersPanel() {
               required={!editing}
             />
           </Field>
-          <Field label="Team" hint="Optional — e.g. red, blue">
+          <Field label="Role" hint="Optional — e.g. detective, suspect">
+            <input
+              className={inputCls}
+              value={form.role}
+              onChange={(e) => set("role", e.target.value)}
+              placeholder="Leave blank for no role"
+            />
+          </Field>
+          <Field label="Team" hint="Optional — e.g. 1, 2">
             <input
               className={inputCls}
               value={form.team}
@@ -674,10 +683,10 @@ function TemplateEditor({
 type Suggestions = {
   flags: string[];
   words: string[];
-  teams: string[];
+  roles: string[];
   players: { id: number; name: string }[];
 };
-const emptySuggestions: Suggestions = { flags: [], words: [], teams: [], players: [] };
+const emptySuggestions: Suggestions = { flags: [], words: [], roles: [], players: [] };
 
 // ── Prompt Modal ───────────────────────────────────────────────────────────────
 
@@ -860,7 +869,7 @@ const defaultPageForm = {
   title: "",
   content: "",
   page_type: "text",
-  visible_to_teams: [] as string[],
+  visible_to_roles: [] as string[],
   visible_to_players: [] as string[],
   required_flags: [] as string[],
   required_flags_hints: [] as string[],
@@ -955,7 +964,7 @@ function PagesPanel() {
       title: c.title,
       content: c.content,
       page_type: c.page_type,
-      visible_to_teams: c.visible_to_teams ?? [],
+      visible_to_roles: c.visible_to_roles ?? [],
       visible_to_players: (c.visible_to_players ?? []).map(playerName),
       required_flags: c.required_flags ?? [],
       required_flags_hints: c.required_flags_hints ?? [],
@@ -987,7 +996,7 @@ function PagesPanel() {
       title: form.title.trim(),
       content: form.content,
       page_type: form.page_type,
-      visible_to_teams: toArr(form.visible_to_teams),
+      visible_to_roles: toArr(form.visible_to_roles),
       visible_to_players: toArr(form.visible_to_players)?.map(playerId) ?? null,
       required_flags,
       required_flags_hints,
@@ -1550,12 +1559,12 @@ function PagesPanel() {
               <option value="safecracker">Safecracker</option>
             </select>
           </Field>
-          <Field label="Visible to Teams" hint="Blank = all teams">
+          <Field label="Visible to Roles" hint="Blank = all roles">
             <TagInput
-              values={form.visible_to_teams}
-              onChange={(v) => setF("visible_to_teams", v)}
-              placeholder="e.g. red"
-              suggestions={suggestions.teams}
+              values={form.visible_to_roles}
+              onChange={(v) => setF("visible_to_roles", v)}
+              placeholder="e.g. detective"
+              suggestions={suggestions.roles}
             />
           </Field>
           <Field label="Visible to Players" hint="Blank = all players">
@@ -1684,8 +1693,11 @@ function ProgressPanel() {
               <div className="flex items-start justify-between mb-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-cream font-medium">{player.name}</span>
+                  {player.role && (
+                    <span className="text-muted text-xs">({player.role})</span>
+                  )}
                   {player.team && (
-                    <span className="text-muted text-xs">({player.team})</span>
+                    <span className="text-muted text-xs">Team {player.team}</span>
                   )}
                   {player.is_admin && (
                     <span className="text-gold text-xs tracking-widest">
