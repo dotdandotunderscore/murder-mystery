@@ -12,6 +12,7 @@ interface Props {
 export default function QRScanner({ onScan, onClose, inline = false }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
+  const lastScanRef = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rotated, setRotated] = useState(false);
 
@@ -24,10 +25,14 @@ export default function QRScanner({ onScan, onClose, inline = false }: Props) {
         videoRef.current!,
         (result, _err, controls) => {
           controlsRef.current = controls;
-          if (result) {
-            controls.stop();
-            onScan(result.getText());
-          }
+          if (!result) return;
+          const text = result.getText();
+          // Debounce: ignore re-reads of the same code within 3 seconds so the
+          // camera stays live and the player can immediately scan a different code.
+          if (text === lastScanRef.current) return;
+          lastScanRef.current = text;
+          setTimeout(() => { lastScanRef.current = null; }, 3000);
+          onScan(text);
         }
       )
       .catch(() => {
