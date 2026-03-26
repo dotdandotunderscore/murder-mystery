@@ -375,7 +375,7 @@ export async function getPageByCodeForPlayer(
   const rawRows = await sql`SELECT * FROM pages WHERE code_phrase = ${codePhrase}`;
   const rows = rawRows.map(parsePageRow) as Page[];
   if (rows.length === 0) return null;
-  if (rows.length === 1) return rows[0];
+  if (rows.length === 1) return rows[0] ?? null;
 
   const role = playerRole?.toLowerCase() ?? null;
 
@@ -533,7 +533,7 @@ export async function updateFolder(
     let cursor: number | null = newParentId;
     while (cursor !== null) {
       if (cursor === id) return null; // cycle detected
-      const rows = await sql`SELECT parent_id FROM page_folders WHERE id = ${cursor}`;
+      const rows: { parent_id: number | null }[] = await sql`SELECT parent_id FROM page_folders WHERE id = ${cursor}`;
       cursor = rows[0]?.parent_id ?? null;
     }
   }

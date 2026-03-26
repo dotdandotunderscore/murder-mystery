@@ -43,7 +43,7 @@ export default function RichText({ text, highlights = [], onCode }: Props) {
     const before = text.slice(lastIndex, match.index);
     if (before) nodes.push(applyHighlights(before, highlights));
 
-    const phrase = match[1].trim();
+    const phrase = (match[1] ?? "").trim();
     nodes.push(
       <button
         key={match.index}

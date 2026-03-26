@@ -17,6 +17,7 @@ interface ClueResult {
   page_type: string;
   grants_flags: string[] | null;
   grants_words: string[] | null;
+  game_config: Record<string, unknown> | null;
 }
 
 function AppInner() {
