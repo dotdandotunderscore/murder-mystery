@@ -171,7 +171,7 @@ function AppInner() {
               <span className="text-muted/60"> · {player.role}</span>
             ) : null}
             {player.team ? (
-              <span className="text-muted/60"> · {player.team}</span>
+              <span className="text-muted/60"> · Team {player.team}</span>
             ) : null}
           </span>
           <div className="flex items-center gap-6">

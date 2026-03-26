@@ -15,6 +15,7 @@ import {
   createPage,
   updatePage,
   deletePage,
+  reorderPages,
   getAllFolders,
   createFolder,
   updateFolder,
@@ -325,6 +326,17 @@ server = Bun.serve({
       },
     },
 
+    "/api/admin/pages/reorder": {
+      POST: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const body = await req.json() as { updates: { id: number; sort_order: number; folder_id: number | null }[] };
+        if (!Array.isArray(body.updates)) return json({ error: "Bad request" }, 400);
+        await reorderPages(body.updates);
+        return json({ ok: true });
+      },
+    },
+
     "/api/admin/pages/:id": {
       PUT: async (req) => {
         const player = await getCurrentPlayer(req);
@@ -372,8 +384,8 @@ server = Bun.serve({
         if (!player) return json({ error: "Unauthorized" }, 401);
         const pageId = parseInt(req.params.id);
         const prompts = await getPagePrompts(pageId, player.id);
-        // Strip answer from response so players can't cheat via devtools
-        return json(prompts.map(({ answer, ...p }) => p));
+        // Strip answer and wrong_answer_hints from response so players can't cheat via devtools
+        return json(prompts.map(({ answer, wrong_answer_hints, ...p }) => p));
       },
     },
 

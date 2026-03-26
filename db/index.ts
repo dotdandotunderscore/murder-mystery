@@ -104,6 +104,7 @@ export interface Prompt {
   removes_flags: string[] | null;
   removes_words: string[] | null;
   success_text: string | null;
+  wrong_answer_hints: Record<string, string> | null;
   sort_order: number;
   created_at: Date;
 }
@@ -211,6 +212,7 @@ export async function initializeDatabase() {
   await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS success_text TEXT`;
   await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS removes_flags TEXT[]`;
   await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS removes_words TEXT[]`;
+  await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS wrong_answer_hints JSONB`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS player_prompt_completions (
@@ -493,6 +495,14 @@ export async function deletePage(id: number): Promise<boolean> {
   return result.length > 0;
 }
 
+export async function reorderPages(
+  updates: { id: number; sort_order: number; folder_id: number | null }[]
+): Promise<void> {
+  for (const { id, sort_order, folder_id } of updates) {
+    await sql`UPDATE pages SET sort_order = ${sort_order}, folder_id = ${folder_id ?? null} WHERE id = ${id}`;
+  }
+}
+
 // --- Folder functions ---
 
 export async function getAllFolders(): Promise<Folder[]> {
@@ -637,6 +647,24 @@ export async function removePlayerWordsByText(playerId: number, words: string[])
 
 // --- Prompt functions ---
 
+function parsePromptRow(row: any): Prompt {
+  if (row && typeof row.wrong_answer_hints === "string") {
+    try { row.wrong_answer_hints = JSON.parse(row.wrong_answer_hints); } catch { row.wrong_answer_hints = null; }
+  }
+  return row as Prompt;
+}
+
+function normalizeWrongAnswerHints(hints: Record<string, string> | null | undefined): string | null {
+  if (!hints) return null;
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(hints)) {
+    const k = key.trim().toUpperCase();
+    const v = value.trim();
+    if (k && v) out[k] = v;
+  }
+  return Object.keys(out).length > 0 ? JSON.stringify(out) : null;
+}
+
 export async function getPagePrompts(pageId: number, playerId: number): Promise<PromptWithCompletion[]> {
   const rows = await sql`
     SELECT p.*, (ppc.id IS NOT NULL) AS completed
@@ -646,16 +674,17 @@ export async function getPagePrompts(pageId: number, playerId: number): Promise<
     WHERE p.page_id = ${pageId}
     ORDER BY p.sort_order, p.created_at
   `;
-  return rows.map((r: Prompt & { completed: unknown }) => ({ ...r, completed: Boolean(r.completed) }));
+  return rows.map((r: Prompt & { completed: unknown }) => ({ ...parsePromptRow(r), completed: Boolean(r.completed) }));
 }
 
 export async function getAllPrompts(): Promise<Prompt[]> {
-  return await sql`SELECT * FROM prompts ORDER BY page_id, sort_order, created_at`;
+  const rows = await sql`SELECT * FROM prompts ORDER BY page_id, sort_order, created_at`;
+  return rows.map(parsePromptRow);
 }
 
 export async function getPromptById(id: number): Promise<Prompt | null> {
   const rows = await sql`SELECT * FROM prompts WHERE id = ${id}`;
-  return rows[0] ?? null;
+  return rows[0] ? parsePromptRow(rows[0]) : null;
 }
 
 export async function createPrompt(data: {
@@ -668,10 +697,11 @@ export async function createPrompt(data: {
   removes_flags?: string[] | null;
   removes_words?: string[] | null;
   success_text?: string | null;
+  wrong_answer_hints?: Record<string, string> | null;
   sort_order?: number;
 }): Promise<Prompt> {
   const [prompt] = await sql`
-    INSERT INTO prompts (page_id, question, template, answer, grants_flags, grants_words, removes_flags, removes_words, success_text, sort_order)
+    INSERT INTO prompts (page_id, question, template, answer, grants_flags, grants_words, removes_flags, removes_words, success_text, wrong_answer_hints, sort_order)
     VALUES (
       ${data.page_id},
       ${data.question},
@@ -682,11 +712,12 @@ export async function createPrompt(data: {
       ${pgTextArray(normalizeLower(data.removes_flags))},
       ${pgTextArray(normalizeUpper(data.removes_words))},
       ${data.success_text ?? null},
+      ${normalizeWrongAnswerHints(data.wrong_answer_hints)},
       ${data.sort_order ?? 0}
     )
     RETURNING *
   `;
-  return prompt;
+  return parsePromptRow(prompt);
 }
 
 export async function updatePrompt(
@@ -701,6 +732,7 @@ export async function updatePrompt(
     removes_flags?: string[] | null;
     removes_words?: string[] | null;
     success_text?: string | null;
+    wrong_answer_hints?: Record<string, string> | null;
     sort_order?: number;
   }
 ): Promise<Prompt | null> {
@@ -715,11 +747,12 @@ export async function updatePrompt(
       removes_flags = ${pgTextArray(normalizeLower(data.removes_flags))},
       removes_words = ${pgTextArray(normalizeUpper(data.removes_words))},
       success_text = ${data.success_text ?? null},
+      wrong_answer_hints = ${normalizeWrongAnswerHints(data.wrong_answer_hints)},
       sort_order = ${data.sort_order ?? 0}
     WHERE id = ${id}
     RETURNING *
   `;
-  return prompt ?? null;
+  return prompt ? parsePromptRow(prompt) : null;
 }
 
 export async function deletePrompt(id: number): Promise<boolean> {
@@ -854,16 +887,28 @@ export async function submitPromptAnswer(
   promptId: number,
   playerId: number,
   words: string[]
-): Promise<{ correct: boolean; grants_flags?: string[]; grants_words?: string[]; success_text?: string }> {
+): Promise<{ correct: boolean; grants_flags?: string[]; grants_words?: string[]; success_text?: string; hints?: string[] }> {
   const prompt = await getPromptById(promptId);
   if (!prompt) return { correct: false };
 
   const normalize = (s: string) => s.trim().toUpperCase();
   const correct =
     prompt.answer.length === words.length &&
-    prompt.answer.every((a, i) => normalize(a) === normalize(words[i] ?? ""));
+    prompt.answer.every((a, i) => {
+      const alternatives = a.split("|").map((s) => s.trim().toUpperCase());
+      return alternatives.includes(normalize(words[i] ?? ""));
+    });
 
-  if (!correct) return { correct: false };
+  if (!correct) {
+    const hints: string[] = [];
+    if (prompt.wrong_answer_hints) {
+      for (const word of words) {
+        const hint = prompt.wrong_answer_hints[normalize(word)];
+        if (hint) hints.push(hint);
+      }
+    }
+    return { correct: false, ...(hints.length > 0 ? { hints } : {}) };
+  }
 
   await sql`
     INSERT INTO player_prompt_completions (player_id, prompt_id)

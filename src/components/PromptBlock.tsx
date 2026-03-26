@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import RichText from "./RichText";
 
 interface Prompt {
@@ -40,7 +40,16 @@ export default function PromptBlock({
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(prompt.completed);
   const [wrong, setWrong] = useState(false);
+  const [wrongHints, setWrongHints] = useState<string[]>([]);
   const [reward, setReward] = useState<{ flags?: string[]; words?: string[]; successText?: string } | null>(null);
+
+  // Clear wrong feedback when the player changes their answer
+  useEffect(() => {
+    if (wrong || wrongHints.length > 0) {
+      setWrong(false);
+      setWrongHints([]);
+    }
+  }, [placements]);
 
   const segments = parseTemplate(prompt.template);
   const gapCount = segments.length - 1;
@@ -50,6 +59,7 @@ export default function PromptBlock({
     if (!allFilled || submitting) return;
     setSubmitting(true);
     setWrong(false);
+    setWrongHints([]);
     try {
       const res = await fetch(`/api/prompts/${prompt.id}/submit`, {
         method: "POST",
@@ -64,6 +74,7 @@ export default function PromptBlock({
         onCorrect?.();
       } else {
         setWrong(true);
+        if (data.hints?.length) setWrongHints(data.hints);
       }
     } catch {
       setWrong(true);
@@ -195,6 +206,13 @@ export default function PromptBlock({
           </span>
         )}
       </div>
+      {wrongHints.length > 0 && (
+        <div className="mt-3 space-y-1">
+          {wrongHints.map((hint, i) => (
+            <p key={i} className="text-muted text-xs italic">{hint}</p>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

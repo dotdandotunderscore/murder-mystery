@@ -49,6 +49,7 @@ interface Prompt {
   removes_flags: string[] | null;
   removes_words: string[] | null;
   success_text: string | null;
+  wrong_answer_hints: Record<string, string> | null;
   sort_order: number;
 }
 
@@ -588,6 +589,62 @@ function RequiredFlagsEditor({
   );
 }
 
+// ── Wrong Answer Hints Editor ──────────────────────────────────────────────────
+
+function WrongAnswerHintsEditor({
+  rows,
+  onChange,
+  wordSuggestions = [],
+}: {
+  rows: { clue: string; hint: string }[];
+  onChange: (v: { clue: string; hint: string }[]) => void;
+  wordSuggestions?: string[];
+}) {
+  const update = (i: number, key: "clue" | "hint", val: string) =>
+    onChange(rows.map((r, j) => (j === i ? { ...r, [key]: val } : r)));
+  const remove = (i: number) => onChange(rows.filter((_, j) => j !== i));
+  const add = () => onChange([...rows, { clue: "", hint: "" }]);
+
+  return (
+    <div className="space-y-2">
+      {rows.map((row, i) => (
+        <div key={i} className="flex gap-2">
+          <AutocompleteInput
+            className="w-5/12 shrink-0"
+            value={row.clue}
+            onChange={(val) => update(i, "clue", val)}
+            placeholder="e.g. KNIFE"
+            suggestions={wordSuggestions}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+          />
+          <input
+            className={`flex-1 min-w-0 ${fieldCls}`}
+            value={row.hint}
+            onChange={(e) => update(i, "hint", e.target.value)}
+            placeholder="Hint shown if this clue is used"
+          />
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="text-muted hover:text-danger transition-colors text-xl leading-none px-1 shrink-0"
+          >
+            −
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={add}
+        className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
+      >
+        + Add
+      </button>
+    </div>
+  );
+}
+
 // ── Template editor helpers ─────────────────────────────────────────────────────
 
 // Convert stored template + answers back to the [WORD] rich format for editing
@@ -596,11 +653,13 @@ function toRichTemplate(template: string, answers: string[]): string {
   return template.replace(/_____/g, () => `[${answers[i++] ?? ""}]`);
 }
 
-// Parse [WORD] rich format into the stored template + answer array
+// Parse [WORD] rich format into the stored template + answer array.
+// Supports alternatives: [KNIFE|CANDLESTICK] → answer entry "KNIFE|CANDLESTICK"
 function fromRichTemplate(rich: string): { template: string; answer: string[] } {
   const answer: string[] = [];
   const template = rich.replace(/\[([^\]]*)\]/g, (_, w) => {
-    answer.push(w.trim().toUpperCase());
+    const alts = w.split("|").map((s: string) => s.trim().toUpperCase()).filter(Boolean).join("|");
+    answer.push(alts);
     return "_____";
   });
   return { template, answer };
@@ -633,7 +692,7 @@ function TemplateEditor({
   };
 
   const gaps = [...value.matchAll(/\[([^\]]*)\]/g)]
-    .map((m) => m[1].trim().toUpperCase())
+    .map((m) => (m[1] ?? "").split("|").map((s) => s.trim().toUpperCase()).filter(Boolean).join(" / "))
     .filter(Boolean);
 
   return (
@@ -643,7 +702,7 @@ function TemplateEditor({
         className={inputCls}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="e.g. The [CANDLESTICK] was found in the [LIBRARY]."
+        placeholder="e.g. The [CANDLESTICK|KNIFE] was found in the [LIBRARY]."
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
@@ -693,6 +752,7 @@ const defaultPromptForm = {
   removes_flags: [] as string[],
   removes_words: [] as string[],
   success_text: "",
+  wrong_answer_hints: [] as { clue: string; hint: string }[],
   sort_order: 0,
 };
 
@@ -713,6 +773,9 @@ function PromptModal({ open, onClose, editing, presetPageId, pages, suggestions,
   useEffect(() => {
     if (!open) return;
     if (editing) {
+      const wah: { clue: string; hint: string }[] = editing.wrong_answer_hints
+        ? Object.entries(editing.wrong_answer_hints).map(([clue, hint]) => ({ clue, hint: hint as string }))
+        : [];
       setForm({
         page_id: editing.page_id,
         question: editing.question,
@@ -722,6 +785,7 @@ function PromptModal({ open, onClose, editing, presetPageId, pages, suggestions,
         removes_flags: editing.removes_flags ?? [],
         removes_words: editing.removes_words ?? [],
         success_text: editing.success_text ?? "",
+        wrong_answer_hints: wah,
         sort_order: editing.sort_order,
       });
     } else {
@@ -735,6 +799,11 @@ function PromptModal({ open, onClose, editing, presetPageId, pages, suggestions,
     e.preventDefault();
     setSaving(true);
     const { template, answer } = fromRichTemplate(form.rich_template.trim());
+    const wahEntries = (form.wrong_answer_hints as { clue: string; hint: string }[])
+      .filter((r) => r.clue.trim() && r.hint.trim());
+    const wrong_answer_hints = wahEntries.length > 0
+      ? Object.fromEntries(wahEntries.map((r) => [r.clue.trim().toUpperCase(), r.hint.trim()]))
+      : null;
     const body = {
       page_id: Number(form.page_id),
       question: form.question.trim(),
@@ -745,6 +814,7 @@ function PromptModal({ open, onClose, editing, presetPageId, pages, suggestions,
       removes_flags: toArr(form.removes_flags as string[]),
       removes_words: toArr(form.removes_words as string[]),
       success_text: form.success_text.trim() || null,
+      wrong_answer_hints,
       sort_order: form.sort_order,
     };
     const res = editing
@@ -792,10 +862,17 @@ function PromptModal({ open, onClose, editing, presetPageId, pages, suggestions,
             required
           />
         </Field>
-        <Field label="Template" hint="Use [WORD] to mark each gap — click a word below to insert">
+        <Field label="Template" hint="Use [WORD] to mark each gap, or [WORD1|WORD2] to accept alternatives — click a word below to insert">
           <TemplateEditor
             value={form.rich_template}
             onChange={(v) => set("rich_template", v)}
+            wordSuggestions={suggestions.words}
+          />
+        </Field>
+        <Field label="Wrong Answer Hints" hint="Show a hint when a specific clue is used incorrectly">
+          <WrongAnswerHintsEditor
+            rows={form.wrong_answer_hints as { clue: string; hint: string }[]}
+            onChange={(v) => set("wrong_answer_hints", v)}
             wordSuggestions={suggestions.words}
           />
         </Field>
@@ -901,6 +978,7 @@ function PagesPanel() {
   const [expandedPages, setExpandedPages] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
   const [dragOverFolder, setDragOverFolder] = useState<number | "root" | null>(null);
+  const [dragOverPage, setDragOverPage] = useState<{ id: number; position: "before" | "after" } | null>(null);
   const [renamingFolder, setRenamingFolder] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [creatingInFolder, setCreatingInFolder] = useState<number | "root" | null>(null);
@@ -1074,6 +1152,61 @@ function PagesPanel() {
         if (targetFolderId !== null) setExpandedFolders((prev) => new Set([...prev, targetFolderId]));
       }
     }
+  };
+
+  const handleDropOnPage = async (e: React.DragEvent, targetPage: Page) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const position = (() => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      return e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+    })();
+    setDragOverPage(null);
+    setDragOverFolder(null);
+
+    const pageIdStr = e.dataTransfer.getData("pageId");
+    if (!pageIdStr) return;
+    const draggedId = parseInt(pageIdStr);
+    if (draggedId === targetPage.id) return;
+
+    // All pages in the target folder, sorted — includes dragged page even if from another folder
+    const folderPages = pages
+      .filter((p) => p.folder_id === targetPage.folder_id)
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    const draggedPage = pages.find((p) => p.id === draggedId);
+    if (!draggedPage) return;
+
+    // Remove dragged from its current position in folder list (if present), then insert at target
+    const without = folderPages.filter((p) => p.id !== draggedId);
+    const targetIdx = without.findIndex((p) => p.id === targetPage.id);
+    const insertAt = position === "before" ? targetIdx : targetIdx + 1;
+    const reordered = [
+      ...without.slice(0, insertAt),
+      draggedPage,
+      ...without.slice(insertAt),
+    ];
+
+    const updates = reordered.map((p, i) => ({
+      id: p.id,
+      sort_order: i,
+      folder_id: targetPage.folder_id,
+    }));
+
+    // Optimistic update
+    setPages((prev) =>
+      prev.map((p) => {
+        const u = updates.find((u) => u.id === p.id);
+        return u ? { ...p, sort_order: u.sort_order, folder_id: u.folder_id } : p;
+      })
+    );
+
+    const res = await fetch("/api/admin/pages/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ updates }),
+    });
+    if (!res.ok) { toast.error("Failed to reorder pages"); load(); }
   };
 
   // ── Folder CRUD ────────────────────────────────────────────────────────────
@@ -1288,8 +1421,11 @@ function PagesPanel() {
             return next;
           });
 
+          const isDragOverBefore = dragOverPage?.id === page.id && dragOverPage.position === "before";
+          const isDragOverAfter = dragOverPage?.id === page.id && dragOverPage.position === "after";
+
           return (
-            <div key={`p-${page.id}`}>
+            <div key={`p-${page.id}`} className={isDragOverBefore ? "border-t-2 border-gold" : isDragOverAfter ? "border-b-2 border-gold" : ""}>
               {/* Page row */}
               <div
                 className="flex items-center gap-2 py-1.5 group hover:bg-surface-2 transition-colors cursor-pointer"
@@ -1318,6 +1454,21 @@ function PagesPanel() {
                   e.dataTransfer.setData("pageId", String(page.id));
                   e.dataTransfer.effectAllowed = "move";
                 }}
+                onDragEnd={() => setDragOverPage(null)}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const position = e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+                  setDragOverPage((prev) =>
+                    prev?.id === page.id && prev.position === position ? prev : { id: page.id, position }
+                  );
+                  setDragOverFolder(null);
+                }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverPage(null);
+                }}
+                onDrop={(e) => handleDropOnPage(e, page)}
               >
                 <span className="text-muted text-xs w-4 shrink-0 select-none">
                   {isExpanded ? "▾" : "▸"}
@@ -1507,7 +1658,7 @@ function PagesPanel() {
               className={inputCls}
               value={form.code_phrase}
               onChange={(e) => setF("code_phrase", e.target.value)}
-              placeholder="e.g. butler-did-it"
+              placeholder="e.g. butler did it"
               required
               autoCapitalize="none"
               autoCorrect="off"
@@ -1591,7 +1742,7 @@ function PagesPanel() {
             <TagInput
               values={form.visible_to_roles}
               onChange={(v) => setF("visible_to_roles", v)}
-              placeholder="e.g. detective"
+              placeholder="e.g. investigator"
               suggestions={suggestions.roles}
             />
           </Field>
