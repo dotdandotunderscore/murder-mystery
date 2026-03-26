@@ -118,7 +118,7 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
   }
 
   // Grant flags and words — skipped for mini-game pages (claimed separately on win)
-  if (page.page_type !== "coin_flip") {
+  if (page.page_type !== "coin_flip" && page.page_type !== "slot_machine") {
     if (page.grants_flags && page.grants_flags.length > 0) {
       await grantPlayerFlags(player.id, page.grants_flags);
     }
@@ -133,7 +133,7 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
   if (effectiveRemoves.length > 0) {
     await removePlayerFlags(player.id, effectiveRemoves);
   }
-  if (page.page_type !== "coin_flip" && page.removes_words && page.removes_words.length > 0) {
+  if (page.page_type !== "coin_flip" && page.page_type !== "slot_machine" && page.removes_words && page.removes_words.length > 0) {
     await removePlayerWordsByText(player.id, page.removes_words);
   }
 

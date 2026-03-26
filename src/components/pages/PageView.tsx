@@ -3,6 +3,7 @@ import PromptBlock from "../PromptBlock";
 import QRScanner from "../QRScanner";
 import RichText from "../RichText";
 import CoinFlipGame from "../CoinFlipGame";
+import SlotMachineGame from "../SlotMachineGame";
 import { useTradeContext } from "../../context/TradeContext";
 
 interface ClueResult {
@@ -22,6 +23,7 @@ interface Prompt {
   template: string;
   grants_flags: string[] | null;
   grants_words: string[] | null;
+  success_text: string | null;
   sort_order: number;
   completed: boolean;
 }
@@ -130,8 +132,18 @@ export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps
         />
       )}
 
+      {/* Slot machine mini-game — grants revealed on jackpot */}
+      {clue.page_type === "slot_machine" && (
+        <SlotMachineGame
+          pageId={clue.id}
+          grantsFlags={clue.grants_flags}
+          grantsWords={clue.grants_words}
+          jackpotChance={(clue.game_config?.jackpot_chance as number) ?? 10}
+        />
+      )}
+
       {/* Grants panel — shown immediately for non-game page types */}
-      {clue.page_type !== "coin_flip" && hasGrants && (
+      {clue.page_type !== "coin_flip" && clue.page_type !== "slot_machine" && hasGrants && (
         <div className="border border-gold/40 bg-gold/5 p-5 mb-6">
           <p className="text-gold text-xs tracking-[0.35em] uppercase mb-3">
             — You Received —

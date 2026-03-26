@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { useTradeContext } from "../context/TradeContext";
+import { getAudioCtx, playFlipSpin, playReelStop, playStreakDing, playFanfare } from "./gameAudio";
 
 interface CoinFlipGameProps {
   pageId: number;
@@ -20,6 +21,7 @@ export default function CoinFlipGame({ pageId, grantsFlags, grantsWords, target 
   const [lastCorrect, setLastCorrect] = useState<boolean | null>(null);
   const [rotation, setRotation] = useState(0);
   const coinRef = useRef<HTMLDivElement>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
   const hasGrants = (grantsWords?.length ?? 0) > 0 || (grantsFlags?.length ?? 0) > 0;
 
@@ -39,6 +41,9 @@ export default function CoinFlipGame({ pageId, grantsFlags, grantsWords, target 
     setFlipping(true);
     setRotation(newRotation);
 
+    const ctx = getAudioCtx(audioCtxRef);
+    playFlipSpin(ctx);
+
     setTimeout(() => {
       setFlipping(false);
       setLastResult(result);
@@ -49,13 +54,17 @@ export default function CoinFlipGame({ pageId, grantsFlags, grantsWords, target 
         setStreak(newStreak);
         if (newStreak >= REQUIRED) {
           setWon(true);
+          setTimeout(() => playFanfare(ctx), 150);
           fetch(`/api/pages/${pageId}/claim`, { method: "POST" }).then(() => {
             refreshInventory();
             refreshFlags();
           });
+        } else {
+          playStreakDing(ctx, newStreak, REQUIRED);
         }
       } else {
         setStreak(0);
+        playReelStop(ctx);
       }
     }, 1600);
   };

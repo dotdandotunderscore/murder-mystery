@@ -1556,6 +1556,7 @@ function PagesPanel() {
               <option value="scanner">Scanner</option>
               <option value="scan_target">Scan Target</option>
               <option value="coin_flip">Coin Flip</option>
+              <option value="slot_machine">Slot Machine</option>
             </select>
           </Field>
           {form.page_type === "coin_flip" && (
@@ -1568,6 +1569,20 @@ function PagesPanel() {
                 value={(form.game_config.target as number) ?? 5}
                 onChange={(e) =>
                   setF("game_config", { ...form.game_config, target: parseInt(e.target.value) || 5 })
+                }
+              />
+            </Field>
+          )}
+          {form.page_type === "slot_machine" && (
+            <Field label="Jackpot Chance (%)" hint="Probability of hitting the jackpot per spin (0–100)">
+              <input
+                className={inputCls}
+                type="number"
+                min={1}
+                max={100}
+                value={(form.game_config.jackpot_chance as number) ?? 10}
+                onChange={(e) =>
+                  setF("game_config", { ...form.game_config, jackpot_chance: parseFloat(e.target.value) || 10 })
                 }
               />
             </Field>
