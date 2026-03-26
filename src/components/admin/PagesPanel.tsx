@@ -55,6 +55,7 @@ export function PagesPanel() {
   const [ghostPos, setGhostPos] = useState<{ x: number; y: number } | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchDragInitiated = useRef(false);
+  const touchMovePrevent = useRef<((e: TouchEvent) => void) | null>(null);
   const pageRowRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const folderRowRefs = useRef<Map<number | "root", HTMLDivElement>>(new Map());
   const [renamingFolder, setRenamingFolder] = useState<number | null>(null);
@@ -94,14 +95,6 @@ export function PagesPanel() {
   };
 
   useEffect(() => { load(); }, []);
-
-  // Prevent page scroll while a touch drag is in progress
-  useEffect(() => {
-    if (!touchDragging) return;
-    const prevent = (e: TouchEvent) => e.preventDefault();
-    document.addEventListener("touchmove", prevent, { passive: false });
-    return () => document.removeEventListener("touchmove", prevent);
-  }, [!!touchDragging]);
 
   const playerName = (id: number) =>
     suggestions.players.find((p) => p.id === id)?.name ?? String(id);
@@ -528,7 +521,7 @@ export function PagesPanel() {
               {/* Page row */}
               <div
                 ref={(el) => { if (el) pageRowRefs.current.set(page.id, el); else pageRowRefs.current.delete(page.id); }}
-                className="flex items-center gap-2 py-1.5 group hover:bg-surface-2 transition-colors cursor-pointer"
+                className="flex items-center gap-2 py-1.5 group hover:bg-surface-2 transition-colors cursor-pointer select-none"
                 style={{ paddingLeft: depth * 16 + 8, paddingRight: 8 }}
                 draggable
                 onClick={() => {
@@ -574,12 +567,16 @@ export function PagesPanel() {
                   if (!touch) return;
                   const { clientX, clientY } = touch;
                   touchDragInitiated.current = false;
+                  // Attach non-passive listener immediately so preventDefault works as soon as drag initiates
+                  const prevent = (ev: TouchEvent) => { if (touchDragInitiated.current) ev.preventDefault(); };
+                  touchMovePrevent.current = prevent;
+                  document.addEventListener("touchmove", prevent, { passive: false });
                   longPressTimer.current = setTimeout(() => {
                     touchDragInitiated.current = true;
                     setTouchDragging(page);
                     setGhostPos({ x: clientX, y: clientY });
                     navigator.vibrate?.(40);
-                  }, 500);
+                  }, 300);
                 }}
                 onTouchMove={(e) => {
                   const touch = e.touches[0];
@@ -593,6 +590,10 @@ export function PagesPanel() {
                     return;
                   }
                   setGhostPos({ x: touch.clientX, y: touch.clientY });
+                  // Edge-scroll when finger is near top or bottom of viewport
+                  const ZONE = 80;
+                  if (touch.clientY < ZONE) window.scrollBy(0, -8);
+                  else if (touch.clientY > window.innerHeight - ZONE) window.scrollBy(0, 8);
                   // Hit-test all page rows
                   let found = false;
                   for (const [id, el] of pageRowRefs.current) {
@@ -620,10 +621,12 @@ export function PagesPanel() {
                 }}
                 onTouchEnd={() => {
                   if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+                  if (touchMovePrevent.current) { document.removeEventListener("touchmove", touchMovePrevent.current); touchMovePrevent.current = null; }
                   endTouchDrag();
                 }}
                 onTouchCancel={() => {
                   if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+                  if (touchMovePrevent.current) { document.removeEventListener("touchmove", touchMovePrevent.current); touchMovePrevent.current = null; }
                   touchDragInitiated.current = false;
                   setTouchDragging(null);
                   setGhostPos(null);
