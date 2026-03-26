@@ -979,6 +979,12 @@ function PagesPanel() {
   const [search, setSearch] = useState("");
   const [dragOverFolder, setDragOverFolder] = useState<number | "root" | null>(null);
   const [dragOverPage, setDragOverPage] = useState<{ id: number; position: "before" | "after" } | null>(null);
+  const [touchDragging, setTouchDragging] = useState<Page | null>(null);
+  const [ghostPos, setGhostPos] = useState<{ x: number; y: number } | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchDragInitiated = useRef(false);
+  const pageRowRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const folderRowRefs = useRef<Map<number | "root", HTMLDivElement>>(new Map());
   const [renamingFolder, setRenamingFolder] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [creatingInFolder, setCreatingInFolder] = useState<number | "root" | null>(null);
@@ -1016,6 +1022,14 @@ function PagesPanel() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Prevent page scroll while a touch drag is in progress
+  useEffect(() => {
+    if (!touchDragging) return;
+    const prevent = (e: TouchEvent) => e.preventDefault();
+    document.addEventListener("touchmove", prevent, { passive: false });
+    return () => document.removeEventListener("touchmove", prevent);
+  }, [!!touchDragging]);
 
   const playerName = (id: number) =>
     suggestions.players.find((p) => p.id === id)?.name ?? String(id);
@@ -1154,52 +1168,21 @@ function PagesPanel() {
     }
   };
 
-  const handleDropOnPage = async (e: React.DragEvent, targetPage: Page) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const position = (() => {
-      const rect = e.currentTarget.getBoundingClientRect();
-      return e.clientY < rect.top + rect.height / 2 ? "before" : "after";
-    })();
-    setDragOverPage(null);
-    setDragOverFolder(null);
-
-    const pageIdStr = e.dataTransfer.getData("pageId");
-    if (!pageIdStr) return;
-    const draggedId = parseInt(pageIdStr);
-    if (draggedId === targetPage.id) return;
-
-    // All pages in the target folder, sorted — includes dragged page even if from another folder
+  const dropPageOnPage = async (draggedPage: Page, targetPage: Page, position: "before" | "after") => {
     const folderPages = pages
       .filter((p) => p.folder_id === targetPage.folder_id)
       .sort((a, b) => a.sort_order - b.sort_order);
 
-    const draggedPage = pages.find((p) => p.id === draggedId);
-    if (!draggedPage) return;
-
-    // Remove dragged from its current position in folder list (if present), then insert at target
-    const without = folderPages.filter((p) => p.id !== draggedId);
+    const without = folderPages.filter((p) => p.id !== draggedPage.id);
     const targetIdx = without.findIndex((p) => p.id === targetPage.id);
     const insertAt = position === "before" ? targetIdx : targetIdx + 1;
-    const reordered = [
-      ...without.slice(0, insertAt),
-      draggedPage,
-      ...without.slice(insertAt),
-    ];
+    const reordered = [...without.slice(0, insertAt), draggedPage, ...without.slice(insertAt)];
+    const updates = reordered.map((p, i) => ({ id: p.id, sort_order: i, folder_id: targetPage.folder_id }));
 
-    const updates = reordered.map((p, i) => ({
-      id: p.id,
-      sort_order: i,
-      folder_id: targetPage.folder_id,
+    setPages((prev) => prev.map((p) => {
+      const u = updates.find((u) => u.id === p.id);
+      return u ? { ...p, sort_order: u.sort_order, folder_id: u.folder_id } : p;
     }));
-
-    // Optimistic update
-    setPages((prev) =>
-      prev.map((p) => {
-        const u = updates.find((u) => u.id === p.id);
-        return u ? { ...p, sort_order: u.sort_order, folder_id: u.folder_id } : p;
-      })
-    );
 
     const res = await fetch("/api/admin/pages/reorder", {
       method: "POST",
@@ -1207,6 +1190,49 @@ function PagesPanel() {
       body: JSON.stringify({ updates }),
     });
     if (!res.ok) { toast.error("Failed to reorder pages"); load(); }
+  };
+
+  const handleDropOnPage = async (e: React.DragEvent, targetPage: Page) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const position = e.clientY < rect.top + rect.height / 2 ? "before" : "after";
+    setDragOverPage(null);
+    setDragOverFolder(null);
+
+    const pageIdStr = e.dataTransfer.getData("pageId");
+    if (!pageIdStr) return;
+    const draggedPage = pages.find((p) => p.id === parseInt(pageIdStr));
+    if (!draggedPage || draggedPage.id === targetPage.id) return;
+    await dropPageOnPage(draggedPage, targetPage, position);
+  };
+
+  const endTouchDrag = async () => {
+    const dragged = touchDragging;
+    const overPage = dragOverPage;
+    const overFolder = dragOverFolder;
+
+    touchDragInitiated.current = false;
+    setTouchDragging(null);
+    setGhostPos(null);
+    setDragOverPage(null);
+    setDragOverFolder(null);
+
+    if (!dragged) return;
+
+    if (overPage && overPage.id !== dragged.id) {
+      const target = pages.find((p) => p.id === overPage.id);
+      if (target) await dropPageOnPage(dragged, target, overPage.position);
+    } else if (overFolder !== null) {
+      const folderId = overFolder === "root" ? null : overFolder;
+      setPages((prev) => prev.map((p) => p.id === dragged.id ? { ...p, folder_id: folderId } : p));
+      const res = await fetch(`/api/admin/pages/${dragged.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...dragged, folder_id: folderId }),
+      });
+      if (!res.ok) { toast.error("Failed to move page"); load(); }
+    }
   };
 
   // ── Folder CRUD ────────────────────────────────────────────────────────────
@@ -1301,6 +1327,7 @@ function PagesPanel() {
             <div key={`f-${folder.id}`}>
               {/* Folder row */}
               <div
+                ref={(el) => { if (el) folderRowRefs.current.set(folder.id, el); else folderRowRefs.current.delete(folder.id); }}
                 className={`flex items-center gap-2 py-1.5 group transition-colors cursor-pointer ${isDragOver ? "ring-1 ring-inset ring-gold bg-gold/10" : "hover:bg-surface-2"}`}
                 style={{ paddingLeft: depth * 16 + 8, paddingRight: 8 }}
                 draggable
@@ -1428,6 +1455,7 @@ function PagesPanel() {
             <div key={`p-${page.id}`} className={isDragOverBefore ? "border-t-2 border-gold" : isDragOverAfter ? "border-b-2 border-gold" : ""}>
               {/* Page row */}
               <div
+                ref={(el) => { if (el) pageRowRefs.current.set(page.id, el); else pageRowRefs.current.delete(page.id); }}
                 className="flex items-center gap-2 py-1.5 group hover:bg-surface-2 transition-colors cursor-pointer"
                 style={{ paddingLeft: depth * 16 + 8, paddingRight: 8 }}
                 draggable
@@ -1469,6 +1497,67 @@ function PagesPanel() {
                   if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverPage(null);
                 }}
                 onDrop={(e) => handleDropOnPage(e, page)}
+                onTouchStart={(e) => {
+                  const touch = e.touches[0];
+                  if (!touch) return;
+                  const { clientX, clientY } = touch;
+                  touchDragInitiated.current = false;
+                  longPressTimer.current = setTimeout(() => {
+                    touchDragInitiated.current = true;
+                    setTouchDragging(page);
+                    setGhostPos({ x: clientX, y: clientY });
+                    navigator.vibrate?.(40);
+                  }, 500);
+                }}
+                onTouchMove={(e) => {
+                  const touch = e.touches[0];
+                  if (!touch) return;
+                  if (!touchDragInitiated.current) {
+                    // Still in long-press window — cancel if finger moved
+                    if (longPressTimer.current) {
+                      clearTimeout(longPressTimer.current);
+                      longPressTimer.current = null;
+                    }
+                    return;
+                  }
+                  setGhostPos({ x: touch.clientX, y: touch.clientY });
+                  // Hit-test all page rows
+                  let found = false;
+                  for (const [id, el] of pageRowRefs.current) {
+                    const rect = el.getBoundingClientRect();
+                    if (touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+                      const pos = touch.clientY < rect.top + rect.height / 2 ? "before" : "after";
+                      setDragOverPage((prev) => prev?.id === id && prev.position === pos ? prev : { id, position: pos });
+                      setDragOverFolder(null);
+                      found = true;
+                      break;
+                    }
+                  }
+                  if (!found) {
+                    for (const [id, el] of folderRowRefs.current) {
+                      const rect = el.getBoundingClientRect();
+                      if (touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+                        setDragOverFolder(id);
+                        setDragOverPage(null);
+                        found = true;
+                        break;
+                      }
+                    }
+                  }
+                  if (!found) { setDragOverPage(null); setDragOverFolder(null); }
+                }}
+                onTouchEnd={() => {
+                  if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+                  endTouchDrag();
+                }}
+                onTouchCancel={() => {
+                  if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+                  touchDragInitiated.current = false;
+                  setTouchDragging(null);
+                  setGhostPos(null);
+                  setDragOverPage(null);
+                  setDragOverFolder(null);
+                }}
               >
                 <span className="text-muted text-xs w-4 shrink-0 select-none">
                   {isExpanded ? "▾" : "▸"}
@@ -1476,7 +1565,7 @@ function PagesPanel() {
                 <span className="font-mono text-xs text-gold shrink-0">{page.code_phrase}</span>
                 <span className="text-cream text-sm flex-1 truncate min-w-0">{page.title}</span>
                 <span className="text-muted text-xs hidden sm:block shrink-0">{page.page_type}</span>
-                <span className={`flex items-center gap-3 shrink-0 ${confirmDelete === page.id ? "" : "hidden group-hover:flex"}`}>
+<span className={`flex items-center gap-3 shrink-0 ${confirmDelete === page.id ? "" : "hidden group-hover:flex"}`}>
                   {confirmDelete === page.id ? (
                     <>
                       <span className="text-muted text-xs">Delete?</span>
@@ -1609,6 +1698,7 @@ function PagesPanel() {
         <div className="border border-gold/20">
           {/* Root drop zone + new folder button */}
           <div
+            ref={(el) => { if (el) folderRowRefs.current.set("root", el); else folderRowRefs.current.delete("root"); }}
             className={`flex items-center gap-2 py-1.5 px-2 border-b border-gold/10 transition-colors ${dragOverFolder === "root" ? "bg-gold/10 ring-1 ring-inset ring-gold" : ""}`}
             onDragOver={(e) => { e.preventDefault(); setDragOverFolder("root"); }}
             onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverFolder(null); }}
@@ -1815,6 +1905,17 @@ function PagesPanel() {
         suggestions={suggestions}
         onSaved={load}
       />
+
+      {/* Touch drag ghost */}
+      {touchDragging && ghostPos && (
+        <div
+          className="fixed pointer-events-none z-50 bg-surface-2 border border-gold/50 px-3 py-1.5 shadow-lg opacity-90 max-w-[60vw]"
+          style={{ left: ghostPos.x + 14, top: ghostPos.y - 16 }}
+        >
+          <span className="font-mono text-xs text-gold">{touchDragging.code_phrase}</span>
+          <span className="text-cream text-xs ml-2 truncate">{touchDragging.title}</span>
+        </div>
+      )}
     </>
   );
 }
