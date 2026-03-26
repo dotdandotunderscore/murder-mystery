@@ -90,10 +90,10 @@ function json(data: unknown, status = 200, extraHeaders?: Record<string, string>
 // Shared unlock logic used by both /api/pages/unlock and /api/pages/scan-unlock.
 // scanned=true means the request came via QR scan (scanned_<phrase> already granted).
 async function unlockPage(player: Player, codePhrase: string, scanned: boolean): Promise<Response> {
-  if (!codePhrase) return json({ error: "Unknown code" }, 404);
+  if (!codePhrase) return json({ error: "Unknown code, have you tried looking around?" }, 404);
 
   const page = await getPageByCodeForPlayer(codePhrase, player.id, player.role ?? null);
-  if (!page) return json({ error: "Unknown code" }, 404);
+  if (!page) return json({ error: "Unknown code, have you tried looking around?" }, 404);
 
   // For scan_target pages, implicitly require scanned_<phrase> and remove it on success.
   const autoFlag = page.page_type === "scan_target" ? `scanned_${codePhrase}` : null;
@@ -198,7 +198,7 @@ server = Bun.serve({
 
         const body = (await req.json()) as { code_phrase: string };
         const codePhrase = body.code_phrase?.trim()?.toLowerCase();
-        if (!codePhrase) return json({ error: "Unknown code" }, 404);
+        if (!codePhrase) return json({ error: "Unknown code, go find an admin" }, 404);
 
         // Grant the scanned flag before the required-flags check so pages can
         // use required_flags: ["scanned_<phrase>"] to block manual entry.
