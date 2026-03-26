@@ -27,6 +27,8 @@
 
   html {
     overscroll-behavior: none;
+    /* Scale the entire UI on narrow viewports — clamps from 13px (≈320px wide) to 16px (≈460px+) */
+    font-size: clamp(13px, 3.5vw, 16px);
   }
 
   body {
