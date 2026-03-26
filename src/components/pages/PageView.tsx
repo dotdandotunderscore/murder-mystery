@@ -107,7 +107,7 @@ export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps
             onClick={onBack}
             className="text-muted text-xs tracking-widest uppercase hover:text-gold transition-colors"
           >
-            ← Return
+            Return
           </button>
         </div>
       </div>

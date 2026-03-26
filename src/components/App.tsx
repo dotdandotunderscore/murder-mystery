@@ -182,7 +182,7 @@ function AppInner() {
                 }
                 className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
               >
-                {currentPage === "admin" ? "← Home" : "Admin"}
+                {currentPage === "admin" ? "Home" : "Admin"}
               </button>
             )}
             <button
