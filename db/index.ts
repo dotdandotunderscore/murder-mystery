@@ -908,8 +908,15 @@ export async function submitPromptAnswer(
   if (!correct) {
     const hints: string[] = [];
     if (prompt.wrong_answer_hints) {
-      for (const word of words) {
-        const hint = prompt.wrong_answer_hints[normalize(word)];
+      for (let i = 0; i < words.length; i++) {
+        const expected = prompt.answer[i];
+        const submitted = normalize(words[i] ?? "");
+        // Skip hints for words that are correct in their position
+        if (expected) {
+          const alternatives = expected.split("|").map((s) => s.trim().toUpperCase());
+          if (alternatives.includes(submitted)) continue;
+        }
+        const hint = prompt.wrong_answer_hints[submitted];
         if (hint) hints.push(hint);
       }
     }
