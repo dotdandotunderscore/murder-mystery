@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { PlayersPanel } from "../admin/PlayersPanel";
 import { PagesPanel } from "../admin/PagesPanel";
-import { ProgressPanel } from "../admin/ProgressPanel";
 
 // ── Admin Page ─────────────────────────────────────────────────────────────────
 
-const TABS = ["players", "pages", "progress"] as const;
+const TABS = ["players", "pages"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function AdminPage() {
@@ -40,7 +39,6 @@ export default function AdminPage() {
       <div className="min-h-[55vh]">
         {activeTab === "players" && <PlayersPanel />}
         {activeTab === "pages" && <PagesPanel />}
-        {activeTab === "progress" && <ProgressPanel />}
       </div>
     </div>
   );

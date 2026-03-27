@@ -24,6 +24,7 @@ export function PlayersPanel() {
   const [newWord, setNewWord] = useState("");
   const [newFlag, setNewFlag] = useState("");
   const [suggestions, setSuggestions] = useState<Suggestions>(emptySuggestions);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -159,6 +160,19 @@ export function PlayersPanel() {
     if (res.ok) {
       setInvFlags((prev) => prev.filter((f) => f !== flag));
       toast.success("Flag removed");
+    }
+  };
+
+  const handleResetProgress = async () => {
+    if (!invPlayer) return;
+    const res = await fetch(`/api/admin/players/${invPlayer.id}/reset-progress`, { method: "POST" });
+    if (res.ok) {
+      setInvWords([]);
+      setInvFlags([]);
+      setConfirmReset(false);
+      toast.success("Progress reset");
+    } else {
+      toast.error(await getErrorMessage(res));
     }
   };
 
@@ -424,6 +438,34 @@ export function PlayersPanel() {
                   Add
                 </button>
               </div>
+            </div>
+
+            {/* Reset progress */}
+            <div className="border-t border-gold/20 pt-6">
+              {confirmReset ? (
+                <div className="flex items-center gap-3">
+                  <span className="text-muted text-xs">Reset all progress for {invPlayer.name}?</span>
+                  <button
+                    onClick={handleResetProgress}
+                    className="text-danger text-xs tracking-widest uppercase hover:underline"
+                  >
+                    Yes, Reset
+                  </button>
+                  <button
+                    onClick={() => setConfirmReset(false)}
+                    className="text-muted text-xs hover:text-cream"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setConfirmReset(true)}
+                  className="text-muted text-xs tracking-widest uppercase hover:text-danger transition-colors"
+                >
+                  Reset All Progress
+                </button>
+              )}
             </div>
           </div>
         )}
