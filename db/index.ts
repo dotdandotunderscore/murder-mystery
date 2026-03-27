@@ -374,11 +374,10 @@ export async function getPageByCodeForPlayer(
   playerId: number,
   playerRole: string | null,
   playerFlags: string[]
-): Promise<Page | null> {
+): Promise<{ page: Page } | { blocked: Page } | null> {
   const rawRows = await sql`SELECT * FROM pages WHERE code_phrase = ${codePhrase}`;
   const rows = rawRows.map(parsePageRow) as Page[];
   if (rows.length === 0) return null;
-  if (rows.length === 1) return rows[0] ?? null;
 
   const role = playerRole?.toLowerCase() ?? null;
   const flagsLower = playerFlags.map((f) => f.toLowerCase());
@@ -402,7 +401,7 @@ export async function getPageByCodeForPlayer(
     (p) => p.visible_to_players && p.visible_to_players.includes(playerId)
   );
   const p1 = bestIn(playerSpecific);
-  if (p1) return p1;
+  if (p1) return { page: p1 };
 
   // Priority 2: listed for this player's role (and not player-restricted)
   const roleSpecific = rows.filter(
@@ -413,12 +412,27 @@ export async function getPageByCodeForPlayer(
       p.visible_to_roles.map((r) => r.toLowerCase()).includes(role)
   );
   const p2 = bestIn(roleSpecific);
-  if (p2) return p2;
+  if (p2) return { page: p2 };
 
   // Priority 3: open to all (no restrictions)
   const open = rows.filter((p) => !p.visible_to_players && !p.visible_to_roles);
   const p3 = bestIn(open);
-  return p3;
+  if (p3) return { page: p3 };
+
+  // No qualifying page found — return the visible-but-blocked page with the
+  // lowest sort_order (highest in the admin list, i.e. the next one they need to unlock)
+  // so the caller can show its required_flags_hints.
+  const visiblePages = [
+    ...playerSpecific,
+    ...roleSpecific,
+    ...open,
+  ];
+  if (visiblePages.length > 0) {
+    const best = visiblePages.reduce((a, b) => (a.sort_order <= b.sort_order ? a : b));
+    return { blocked: best };
+  }
+
+  return null;
 }
 
 export async function createPage(data: {

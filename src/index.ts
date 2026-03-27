@@ -94,8 +94,21 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
   if (!codePhrase) return json({ error: "Unknown code, have you tried looking around?" }, 404);
 
   const playerFlags = await getPlayerFlags(player.id);
-  const page = await getPageByCodeForPlayer(codePhrase, player.id, player.role ?? null, playerFlags);
-  if (!page) return json({ error: "Unknown code, have you tried looking around?" }, 404);
+  const result = await getPageByCodeForPlayer(codePhrase, player.id, player.role ?? null, playerFlags);
+  if (!result) return json({ error: "Unknown code, have you tried looking around?" }, 404);
+
+  // Player is visible for this page but missing required flags — show hints
+  if ("blocked" in result) {
+    const blocked = result.blocked;
+    const playerFlagsLower = playerFlags.map((f) => f.toLowerCase());
+    const missingHints = (blocked.required_flags ?? [])
+      .map((f, i) => ({ missing: !playerFlagsLower.includes(f.toLowerCase()), hint: blocked.required_flags_hints?.[i] ?? "" }))
+      .filter((x) => x.missing && x.hint)
+      .map((x) => x.hint);
+    return json({ error: "You're missing a prerequisite", hints: missingHints.length > 0 ? missingHints : undefined }, 403);
+  }
+
+  const page = result.page;
 
   // For scan_target pages, implicitly require scanned_<phrase> and remove it on success.
   // This auto-flag is NOT checked during page selection — only here.
