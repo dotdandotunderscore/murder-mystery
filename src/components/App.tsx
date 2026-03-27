@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { usePlayer } from "../context/PlayerContext";
 import { TradeProvider, useTradeContext } from "../context/TradeContext";
 import LoginPage from "./pages/LoginPage";
@@ -30,13 +30,76 @@ function AppInner() {
   const [hints, setHints] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
-  React.useEffect(() => {
+  // --- History API integration ---
+  // When true, the current navigation was triggered by popstate (back/forward),
+  // so we should NOT push a new history entry.
+  const isPopNav = useRef(false);
+
+  const pushView = useCallback((view: "home" | "clue" | "admin", codePhrase?: string) => {
+    if (isPopNav.current) {
+      isPopNav.current = false;
+      return;
+    }
+    history.pushState({ view, codePhrase }, "");
+  }, []);
+
+  // Set initial history state on mount
+  useEffect(() => {
+    history.replaceState({ view: "home" }, "");
+  }, []);
+
+  // Listen for back/forward
+  useEffect(() => {
+    const onPopState = async (e: PopStateEvent) => {
+      const state = e.state as { view: string; codePhrase?: string } | null;
+      isPopNav.current = true;
+
+      if (!state || state.view === "home") {
+        setCurrentPage(null);
+        setClue(null);
+        setCodeInput("");
+        setError(null);
+        setHints([]);
+      } else if (state.view === "admin") {
+        setCurrentPage("admin");
+        setClue(null);
+      } else if (state.view === "clue" && state.codePhrase) {
+        try {
+          const res = await fetch("/api/pages/unlock", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code_phrase: state.codePhrase }),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            setClue(data);
+            setCurrentPage("clue");
+          } else {
+            // Page no longer accessible — go home
+            setCurrentPage(null);
+            setClue(null);
+          }
+        } catch {
+          setCurrentPage(null);
+          setClue(null);
+        }
+      }
+
+      // Reset the flag after async work completes
+      isPopNav.current = false;
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
     if (!player) {
       setCurrentPage(null);
       setClue(null);
       setCodeInput("");
       setError(null);
       setHints([]);
+      history.replaceState({ view: "home" }, "");
     }
   }, [player?.id]);
 
@@ -67,6 +130,7 @@ function AppInner() {
       if (res.ok) {
         setClue(data);
         setCurrentPage("clue");
+        pushView("clue", codeInput.trim().toLowerCase());
       } else {
         setError(data.error ?? "Invalid code");
         setHints(data.hints ?? []);
@@ -92,6 +156,7 @@ function AppInner() {
         setClue(data);
         setCurrentPage("clue");
         setCodeInput("");
+        pushView("clue", phrase.trim().toLowerCase());
       } else {
         const hints: string[] = data.hints ?? [];
         const id = toast.error(data.error ?? "Invalid code", {
@@ -122,6 +187,7 @@ function AppInner() {
         setClue(data);
         setCurrentPage("clue");
         setCodeInput("");
+        pushView("clue", value.trim().toLowerCase());
         return true;
       } else {
         const hints: string[] = data.hints ?? [];
@@ -149,6 +215,7 @@ function AppInner() {
     setCodeInput("");
     setError(null);
     setHints([]);
+    pushView("home");
   };
 
   const renderPage = () => {
@@ -178,9 +245,11 @@ function AppInner() {
           <div className="flex items-center gap-6">
             {player.is_admin && (
               <button
-                onClick={() =>
-                  setCurrentPage(currentPage === "admin" ? null : "admin")
-                }
+                onClick={() => {
+                  const next = currentPage === "admin" ? null : "admin";
+                  setCurrentPage(next);
+                  pushView(next === "admin" ? "admin" : "home");
+                }}
                 className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
               >
                 {currentPage === "admin" ? "Home" : "Admin"}
