@@ -370,7 +370,8 @@ export async function getPageByCode(codePhrase: string): Promise<Page | null> {
 export async function getPageByCodeForPlayer(
   codePhrase: string,
   playerId: number,
-  playerRole: string | null
+  playerRole: string | null,
+  playerFlags: string[]
 ): Promise<Page | null> {
   const rawRows = await sql`SELECT * FROM pages WHERE code_phrase = ${codePhrase}`;
   const rows = rawRows.map(parsePageRow) as Page[];
@@ -378,26 +379,44 @@ export async function getPageByCodeForPlayer(
   if (rows.length === 1) return rows[0] ?? null;
 
   const role = playerRole?.toLowerCase() ?? null;
+  const flagsLower = playerFlags.map((f) => f.toLowerCase());
+
+  const meetsFlags = (page: Page): boolean => {
+    if (!page.required_flags || page.required_flags.length === 0) return true;
+    return page.required_flags.every((f) => flagsLower.includes(f.toLowerCase()));
+  };
+
+  // Within each tier, pick the qualifying page with the highest sort_order
+  // (furthest down in the admin list). This lets admins stack progressively
+  // harder versions of a page and the player sees the most advanced one they qualify for.
+  const bestIn = (candidates: Page[]): Page | null => {
+    const qualified = candidates.filter(meetsFlags);
+    if (qualified.length === 0) return null;
+    return qualified.reduce((a, b) => (b.sort_order >= a.sort_order ? b : a));
+  };
 
   // Priority 1: explicitly listed for this player
-  const playerSpecific = rows.find(
+  const playerSpecific = rows.filter(
     (p) => p.visible_to_players && p.visible_to_players.includes(playerId)
   );
-  if (playerSpecific) return playerSpecific;
+  const p1 = bestIn(playerSpecific);
+  if (p1) return p1;
 
   // Priority 2: listed for this player's role (and not player-restricted)
-  const roleSpecific = rows.find(
+  const roleSpecific = rows.filter(
     (p) =>
       !p.visible_to_players &&
       role &&
       p.visible_to_roles &&
       p.visible_to_roles.map((r) => r.toLowerCase()).includes(role)
   );
-  if (roleSpecific) return roleSpecific;
+  const p2 = bestIn(roleSpecific);
+  if (p2) return p2;
 
   // Priority 3: open to all (no restrictions)
-  const open = rows.find((p) => !p.visible_to_players && !p.visible_to_roles);
-  return open ?? null;
+  const open = rows.filter((p) => !p.visible_to_players && !p.visible_to_roles);
+  const p3 = bestIn(open);
+  return p3;
 }
 
 export async function createPage(data: {

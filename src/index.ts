@@ -93,28 +93,18 @@ function json(data: unknown, status = 200, extraHeaders?: Record<string, string>
 async function unlockPage(player: Player, codePhrase: string, scanned: boolean): Promise<Response> {
   if (!codePhrase) return json({ error: "Unknown code, have you tried looking around?" }, 404);
 
-  const page = await getPageByCodeForPlayer(codePhrase, player.id, player.role ?? null);
+  const playerFlags = await getPlayerFlags(player.id);
+  const page = await getPageByCodeForPlayer(codePhrase, player.id, player.role ?? null, playerFlags);
   if (!page) return json({ error: "Unknown code, have you tried looking around?" }, 404);
 
   // For scan_target pages, implicitly require scanned_<phrase> and remove it on success.
+  // This auto-flag is NOT checked during page selection — only here.
   const autoFlag = page.page_type === "scan_target" ? `scanned_${codePhrase}` : null;
 
-  const effectiveRequired = autoFlag
-    ? [...(page.required_flags ?? []), autoFlag]
-    : (page.required_flags ?? []);
-
-  // Required flags check
-  if (effectiveRequired.length > 0) {
-    const playerFlags = await getPlayerFlags(player.id);
+  if (autoFlag) {
     const playerFlagsLower = playerFlags.map((f) => f.toLowerCase());
-    // Hints only apply to the explicit required_flags (not the auto flag)
-    const missingHints = (page.required_flags ?? [])
-      .map((f, i) => ({ missing: !playerFlagsLower.includes(f.toLowerCase()), hint: page.required_flags_hints?.[i] ?? "" }))
-      .filter((x) => x.missing && x.hint)
-      .map((x) => x.hint);
-    const allPresent = effectiveRequired.every((f) => playerFlagsLower.includes(f.toLowerCase()));
-    if (!allPresent) {
-      return json({ error: "You're missing a prerequisite", hints: missingHints.length > 0 ? missingHints : undefined }, 403);
+    if (!playerFlagsLower.includes(autoFlag.toLowerCase())) {
+      return json({ error: "You're missing a prerequisite" }, 403);
     }
   }
 
