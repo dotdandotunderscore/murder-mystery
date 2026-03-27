@@ -6,7 +6,9 @@
       "Bash(~/.bun/bin/bun remove:*)",
       "Bash(~/.bun/bin/bun add:*)",
       "Bash(bun add:*)",
-      "Bash(bun run:*)"
+      "Bash(bun run:*)",
+      "Read(//usr/local/bin/**)",
+      "Read(//opt/homebrew/bin/**)"
     ]
   }
 }

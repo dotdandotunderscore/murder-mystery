@@ -446,6 +446,36 @@ server = Bun.serve({
       },
     },
 
+    "/api/admin/players/:id/flags": {
+      GET: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const id = parseInt(req.params.id);
+        const flags = await getPlayerFlags(id);
+        return json(flags);
+      },
+      POST: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const id = parseInt(req.params.id);
+        const body = (await req.json()) as { flags: string[] };
+        if (!Array.isArray(body.flags)) return json({ error: "Bad request" }, 400);
+        await grantPlayerFlags(id, body.flags);
+        pushToPlayer(id, { type: "player_updated" });
+        return json({ ok: true });
+      },
+      DELETE: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const id = parseInt(req.params.id);
+        const body = (await req.json()) as { flags: string[] };
+        if (!Array.isArray(body.flags)) return json({ error: "Bad request" }, 400);
+        await removePlayerFlags(id, body.flags);
+        pushToPlayer(id, { type: "player_updated" });
+        return json({ ok: true });
+      },
+    },
+
     // --- Admin: Prompts ---
 
     "/api/admin/prompts": {

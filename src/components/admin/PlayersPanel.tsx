@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { Modal, Toggle, Field, inputCls, saveBtnCls, getErrorMessage } from "./shared";
-import type { Player } from "./types";
+import { Modal, Toggle, Field, inputCls, fieldCls, saveBtnCls, getErrorMessage } from "./shared";
+import type { Player, Suggestions } from "./types";
+import { emptySuggestions } from "./types";
 
 // ── Players Panel ──────────────────────────────────────────────────────────────
 
@@ -15,6 +16,14 @@ export function PlayersPanel() {
   const [form, setForm] = useState(defaultPlayerForm);
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+
+  // Inventory modal state
+  const [invPlayer, setInvPlayer] = useState<Player | null>(null);
+  const [invWords, setInvWords] = useState<{ id: number; word: string }[]>([]);
+  const [invFlags, setInvFlags] = useState<string[]>([]);
+  const [newWord, setNewWord] = useState("");
+  const [newFlag, setNewFlag] = useState("");
+  const [suggestions, setSuggestions] = useState<Suggestions>(emptySuggestions);
 
   const load = async () => {
     setLoading(true);
@@ -81,6 +90,78 @@ export function PlayersPanel() {
     setConfirmDelete(null);
   };
 
+  // ── Inventory modal ──────────────────────────────────────────────────────────
+
+  const openInventory = async (p: Player) => {
+    setInvPlayer(p);
+    setNewWord("");
+    setNewFlag("");
+    const [wordsRes, flagsRes, sugRes] = await Promise.all([
+      fetch(`/api/admin/players/${p.id}/words`),
+      fetch(`/api/admin/players/${p.id}/flags`),
+      fetch("/api/admin/suggestions"),
+    ]);
+    if (wordsRes.ok) setInvWords(await wordsRes.json());
+    if (flagsRes.ok) setInvFlags(await flagsRes.json());
+    if (sugRes.ok) setSuggestions(await sugRes.json());
+  };
+
+  const addWord = async () => {
+    if (!invPlayer || !newWord.trim()) return;
+    const res = await fetch(`/api/admin/players/${invPlayer.id}/words`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ words: [newWord.trim()] }),
+    });
+    if (res.ok) {
+      setNewWord("");
+      const r = await fetch(`/api/admin/players/${invPlayer.id}/words`);
+      if (r.ok) setInvWords(await r.json());
+      toast.success("Clue added");
+    } else {
+      toast.error(await getErrorMessage(res));
+    }
+  };
+
+  const removeWord = async (wordId: number) => {
+    if (!invPlayer) return;
+    const res = await fetch(`/api/admin/players/${invPlayer.id}/words/${wordId}`, { method: "DELETE" });
+    if (res.ok) {
+      setInvWords((prev) => prev.filter((w) => w.id !== wordId));
+      toast.success("Clue removed");
+    }
+  };
+
+  const addFlag = async () => {
+    if (!invPlayer || !newFlag.trim()) return;
+    const res = await fetch(`/api/admin/players/${invPlayer.id}/flags`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ flags: [newFlag.trim()] }),
+    });
+    if (res.ok) {
+      setNewFlag("");
+      const r = await fetch(`/api/admin/players/${invPlayer.id}/flags`);
+      if (r.ok) setInvFlags(await r.json());
+      toast.success("Flag added");
+    } else {
+      toast.error(await getErrorMessage(res));
+    }
+  };
+
+  const removeFlag = async (flag: string) => {
+    if (!invPlayer) return;
+    const res = await fetch(`/api/admin/players/${invPlayer.id}/flags`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ flags: [flag] }),
+    });
+    if (res.ok) {
+      setInvFlags((prev) => prev.filter((f) => f !== flag));
+      toast.success("Flag removed");
+    }
+  };
+
   return (
     <>
       <div className="flex items-center justify-between mb-5">
@@ -143,6 +224,12 @@ export function PlayersPanel() {
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-4">
+                        <button
+                          onClick={() => openInventory(p)}
+                          className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
+                        >
+                          Inventory
+                        </button>
                         <button
                           onClick={() => openEdit(p)}
                           className="text-gold text-xs tracking-widest uppercase hover:text-gold-light transition-colors"
@@ -239,6 +326,107 @@ export function PlayersPanel() {
             {saving ? "Saving…" : "Save"}
           </button>
         </form>
+      </Modal>
+
+      {/* Inventory Modal */}
+      <Modal
+        open={!!invPlayer}
+        onClose={() => setInvPlayer(null)}
+        title={invPlayer ? `${invPlayer.name} — Inventory` : ""}
+      >
+        {invPlayer && (
+          <div className="space-y-8">
+            {/* Clues */}
+            <div>
+              <h4 className="text-gold text-xs tracking-widest uppercase mb-3">Clues</h4>
+              {invWords.length > 0 ? (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {invWords.map((w) => (
+                    <span
+                      key={w.id}
+                      className="inline-flex items-center gap-1.5 border border-gold/20 text-cream font-mono text-xs px-2 py-1"
+                    >
+                      {w.word}
+                      <button
+                        onClick={() => removeWord(w.id)}
+                        className="text-muted hover:text-danger transition-colors text-sm leading-none"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted text-xs mb-3">No clues</p>
+              )}
+              <div className="flex gap-2">
+                <input
+                  className={`flex-1 min-w-0 ${fieldCls}`}
+                  value={newWord}
+                  onChange={(e) => setNewWord(e.target.value)}
+                  placeholder="Add clue (e.g. KNIFE)"
+                  list="word-suggestions"
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addWord(); } }}
+                />
+                <datalist id="word-suggestions">
+                  {suggestions.words.map((w) => <option key={w} value={w} />)}
+                </datalist>
+                <button
+                  type="button"
+                  onClick={addWord}
+                  className="bg-gold text-ink px-4 py-2 text-xs tracking-widest uppercase font-semibold hover:bg-gold-light transition-colors shrink-0"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+
+            {/* Flags */}
+            <div>
+              <h4 className="text-gold text-xs tracking-widest uppercase mb-3">Flags</h4>
+              {invFlags.length > 0 ? (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {invFlags.map((f) => (
+                    <span
+                      key={f}
+                      className="inline-flex items-center gap-1.5 border border-gold/30 text-gold text-xs px-2 py-1 tracking-wide"
+                    >
+                      {f}
+                      <button
+                        onClick={() => removeFlag(f)}
+                        className="text-muted hover:text-danger transition-colors text-sm leading-none"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted text-xs mb-3">No flags</p>
+              )}
+              <div className="flex gap-2">
+                <input
+                  className={`flex-1 min-w-0 ${fieldCls}`}
+                  value={newFlag}
+                  onChange={(e) => setNewFlag(e.target.value)}
+                  placeholder="Add flag (e.g. found_weapon)"
+                  list="flag-suggestions"
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addFlag(); } }}
+                />
+                <datalist id="flag-suggestions">
+                  {suggestions.flags.map((f) => <option key={f} value={f} />)}
+                </datalist>
+                <button
+                  type="button"
+                  onClick={addFlag}
+                  className="bg-gold text-ink px-4 py-2 text-xs tracking-widest uppercase font-semibold hover:bg-gold-light transition-colors shrink-0"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </Modal>
     </>
   );

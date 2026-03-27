@@ -417,6 +417,12 @@ export async function createPage(data: {
   sort_order?: number;
   folder_id?: number | null;
 }): Promise<Page> {
+  const folderId = data.folder_id ?? null;
+  let sortOrder = data.sort_order;
+  if (sortOrder === undefined) {
+    const [row] = await sql`SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM pages WHERE folder_id ${folderId === null ? sql`IS NULL` : sql`= ${folderId}`}`;
+    sortOrder = row.next;
+  }
   const [page] = await sql`
     INSERT INTO pages (
       code_phrase, title, content, page_type,
@@ -439,8 +445,8 @@ export async function createPage(data: {
       ${pgTextArray(normalizeLower(data.removes_flags))},
       ${pgTextArray(normalizeUpper(data.removes_words))},
       ${data.game_config ? JSON.stringify(data.game_config) : null},
-      ${data.sort_order ?? 0},
-      ${data.folder_id ?? null}
+      ${sortOrder},
+      ${folderId}
     )
     RETURNING *
   `;
@@ -482,7 +488,7 @@ export async function updatePage(
       removes_flags = ${pgTextArray(normalizeLower(data.removes_flags))},
       removes_words = ${pgTextArray(normalizeUpper(data.removes_words))},
       game_config = ${data.game_config ? JSON.stringify(data.game_config) : null},
-      sort_order = ${data.sort_order ?? 0},
+      sort_order = COALESCE(${data.sort_order !== undefined ? data.sort_order : null}, pages.sort_order),
       folder_id = ${data.folder_id ?? null}
     WHERE id = ${id}
     RETURNING *
