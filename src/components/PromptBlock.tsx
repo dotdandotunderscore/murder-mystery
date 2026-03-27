@@ -97,11 +97,11 @@ export default function PromptBlock({
         <p className="text-gold text-xs tracking-[0.35em] uppercase mb-2">
           — Solved —
         </p>
-        <p className="text-muted text-sm italic mb-2">{prompt.question}</p>
+        <p className="text-muted text-sm italic mb-2"><RichText text={prompt.question} onCode={onCode} /></p>
         <div className="flex flex-wrap gap-1 text-cream text-sm leading-relaxed">
           {segments.map((seg, i) => (
             <React.Fragment key={i}>
-              <span>{seg}</span>
+              <span><RichText text={seg} onCode={onCode} /></span>
               {i < gapCount && (
                 <span className="border-b border-gold/50 text-gold font-mono text-xs px-2 py-0.5">
                   {placements[i] ?? "—"}
@@ -162,13 +162,13 @@ export default function PromptBlock({
 
   return (
     <div className="border border-gold/20 bg-surface-2 p-5 mb-4">
-      <p className="text-muted text-sm italic mb-4">{prompt.question}</p>
+      <p className="text-muted text-sm italic mb-4"><RichText text={prompt.question} onCode={onCode} /></p>
 
       {/* Template with gaps */}
       <div className="flex flex-wrap items-baseline gap-x-1 gap-y-2 mb-5 text-cream leading-relaxed">
         {segments.map((seg, i) => (
           <React.Fragment key={i}>
-            <span>{seg}</span>
+            <span><RichText text={seg} onCode={onCode} /></span>
             {i < gapCount && (
               <button
                 onClick={() => onGapClick(prompt.id, i, placements[i] ?? null)}
@@ -209,7 +209,7 @@ export default function PromptBlock({
       {wrongHints.length > 0 && (
         <div className="mt-3 space-y-1">
           {wrongHints.map((hint, i) => (
-            <p key={i} className="text-muted text-xs italic">{hint}</p>
+            <p key={i} className="text-muted text-xs italic"><RichText text={hint} /></p>
           ))}
         </div>
       )}

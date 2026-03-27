@@ -1,6 +1,19 @@
 import React from "react";
 
+// Converts newlines in a plain string to <br/> elements.
+function applyLineBreaks(text: string, keyPrefix: string): React.ReactNode[] {
+  const parts = text.split("\n");
+  if (parts.length === 1) return [text];
+  const nodes: React.ReactNode[] = [];
+  parts.forEach((part, i) => {
+    if (i > 0) nodes.push(<br key={`${keyPrefix}-br${i}`} />);
+    if (part) nodes.push(part);
+  });
+  return nodes;
+}
+
 // Applies **bold** and *italic* formatting to a plain string, returning ReactNodes.
+// Also handles \n → <br/> within plain text segments.
 function applyFormatting(text: string, keyPrefix: string): React.ReactNode[] {
   // Match **bold** first, then *italic* — bold must come first so ** isn't consumed as two *
   const pattern = /(\*\*(.+?)\*\*|\*(.+?)\*)/g;
@@ -9,7 +22,7 @@ function applyFormatting(text: string, keyPrefix: string): React.ReactNode[] {
   let match: RegExpExecArray | null;
 
   while ((match = pattern.exec(text)) !== null) {
-    if (match.index > last) nodes.push(text.slice(last, match.index));
+    if (match.index > last) nodes.push(...applyLineBreaks(text.slice(last, match.index), `${keyPrefix}-${last}`));
     if (match[2] != null) {
       nodes.push(<strong key={`${keyPrefix}-b${match.index}`}>{match[2]}</strong>);
     } else if (match[3] != null) {
@@ -17,7 +30,7 @@ function applyFormatting(text: string, keyPrefix: string): React.ReactNode[] {
     }
     last = match.index + match[0].length;
   }
-  if (last < text.length) nodes.push(text.slice(last));
+  if (last < text.length) nodes.push(...applyLineBreaks(text.slice(last), `${keyPrefix}-${last}`));
   return nodes;
 }
 

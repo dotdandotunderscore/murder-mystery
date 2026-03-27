@@ -99,7 +99,7 @@ export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps
       <div className="border border-gold/25 bg-surface p-8 mb-6">
         <h2 className="text-3xl text-cream mb-5">{clue.title}</h2>
         <div className="h-px bg-gold/25 mb-6" />
-        <p className="text-cream leading-relaxed whitespace-pre-wrap text-lg">
+        <p className="text-cream leading-relaxed text-lg">
           <RichText text={clue.content} highlights={highlightTerms} onCode={onCode} />
         </p>
         <div className="flex justify-end mt-6">
