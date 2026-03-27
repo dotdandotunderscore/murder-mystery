@@ -1,8 +1,30 @@
 import React from "react";
 
-// Splits text on highlighted terms, returning spans with gold styling for matches.
+// Applies **bold** and *italic* formatting to a plain string, returning ReactNodes.
+function applyFormatting(text: string, keyPrefix: string): React.ReactNode[] {
+  // Match **bold** first, then *italic* — bold must come first so ** isn't consumed as two *
+  const pattern = /(\*\*(.+?)\*\*|\*(.+?)\*)/g;
+  const nodes: React.ReactNode[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > last) nodes.push(text.slice(last, match.index));
+    if (match[2] != null) {
+      nodes.push(<strong key={`${keyPrefix}-b${match.index}`}>{match[2]}</strong>);
+    } else if (match[3] != null) {
+      nodes.push(<em key={`${keyPrefix}-i${match.index}`}>{match[3]}</em>);
+    }
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
+
+// Splits text on highlighted terms, returning spans with gold styling for matches,
+// then applies bold/italic formatting to each segment.
 function applyHighlights(text: string, terms: string[]): React.ReactNode {
-  if (!terms.length) return text;
+  if (!terms.length) return applyFormatting(text, "f");
   const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
   const parts = text.split(pattern);
@@ -10,7 +32,7 @@ function applyHighlights(text: string, terms: string[]): React.ReactNode {
     terms.some((t) => t.toLowerCase() === part.toLowerCase()) ? (
       <span key={i} className="text-gold font-semibold">{part}</span>
     ) : (
-      part
+      <React.Fragment key={i}>{applyFormatting(part, `f${i}`)}</React.Fragment>
     )
   );
 }
