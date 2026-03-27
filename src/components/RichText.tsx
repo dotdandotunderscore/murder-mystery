@@ -15,8 +15,8 @@ function applyLineBreaks(text: string, keyPrefix: string): React.ReactNode[] {
 // Applies **bold** and *italic* formatting to a plain string, returning ReactNodes.
 // Also handles \n → <br/> within plain text segments.
 function applyFormatting(text: string, keyPrefix: string): React.ReactNode[] {
-  // Match **bold** first, then *italic* — bold must come first so ** isn't consumed as two *
-  const pattern = /(\*\*(.+?)\*\*|\*(.+?)\*)/g;
+  // Match ***bold+italic*** first, then **bold**, then *italic*
+  const pattern = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*)/g;
   const nodes: React.ReactNode[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
@@ -24,9 +24,11 @@ function applyFormatting(text: string, keyPrefix: string): React.ReactNode[] {
   while ((match = pattern.exec(text)) !== null) {
     if (match.index > last) nodes.push(...applyLineBreaks(text.slice(last, match.index), `${keyPrefix}-${last}`));
     if (match[2] != null) {
-      nodes.push(<strong key={`${keyPrefix}-b${match.index}`}>{match[2]}</strong>);
+      nodes.push(<strong key={`${keyPrefix}-bi${match.index}`}><em>{match[2]}</em></strong>);
     } else if (match[3] != null) {
-      nodes.push(<em key={`${keyPrefix}-i${match.index}`}>{match[3]}</em>);
+      nodes.push(<strong key={`${keyPrefix}-b${match.index}`}>{match[3]}</strong>);
+    } else if (match[4] != null) {
+      nodes.push(<em key={`${keyPrefix}-i${match.index}`}>{match[4]}</em>);
     }
     last = match.index + match[0].length;
   }
