@@ -111,6 +111,7 @@ export interface Prompt {
 
 export interface PromptWithCompletion extends Prompt {
   completed: boolean;
+  submitted_words: string[] | null;
 }
 
 export interface Trade {
@@ -211,6 +212,7 @@ export async function initializeDatabase() {
 
   await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS success_text TEXT`;
   await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS removes_flags TEXT[]`;
+  await sql`ALTER TABLE player_prompt_completions ADD COLUMN IF NOT EXISTS submitted_words TEXT[]`;
   await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS removes_words TEXT[]`;
   await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS wrong_answer_hints JSONB`;
 
@@ -692,14 +694,18 @@ function normalizeWrongAnswerHints(hints: Record<string, string> | null | undefi
 
 export async function getPagePrompts(pageId: number, playerId: number): Promise<PromptWithCompletion[]> {
   const rows = await sql`
-    SELECT p.*, (ppc.id IS NOT NULL) AS completed
+    SELECT p.*, (ppc.id IS NOT NULL) AS completed, ppc.submitted_words
     FROM prompts p
     LEFT JOIN player_prompt_completions ppc
       ON ppc.prompt_id = p.id AND ppc.player_id = ${playerId}
     WHERE p.page_id = ${pageId}
     ORDER BY p.sort_order, p.created_at
   `;
-  return rows.map((r: Prompt & { completed: unknown }) => ({ ...parsePromptRow(r), completed: Boolean(r.completed) }));
+  return rows.map((r: Prompt & { completed: unknown; submitted_words: string[] | null }) => ({
+    ...parsePromptRow(r),
+    completed: Boolean(r.completed),
+    submitted_words: r.submitted_words ?? null,
+  }));
 }
 
 export async function getAllPrompts(): Promise<Prompt[]> {
@@ -942,9 +948,10 @@ export async function submitPromptAnswer(
     return { correct: false, ...(hints.length > 0 ? { hints } : {}) };
   }
 
+  const submittedUpper = words.map((w) => w.trim().toUpperCase());
   await sql`
-    INSERT INTO player_prompt_completions (player_id, prompt_id)
-    VALUES (${playerId}, ${promptId})
+    INSERT INTO player_prompt_completions (player_id, prompt_id, submitted_words)
+    VALUES (${playerId}, ${promptId}, ${pgTextArray(submittedUpper)})
     ON CONFLICT (player_id, prompt_id) DO NOTHING
   `;
 

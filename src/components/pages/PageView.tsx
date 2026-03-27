@@ -26,6 +26,7 @@ interface Prompt {
   success_text: string | null;
   sort_order: number;
   completed: boolean;
+  submitted_words?: string[] | null;
 }
 
 interface PageViewProps {
@@ -54,7 +55,9 @@ export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps
         const init: Record<number, (string | null)[]> = {};
         for (const p of data) {
           const gapCount = parseTemplate(p.template).length - 1;
-          init[p.id] = Array(gapCount).fill(null);
+          init[p.id] = p.completed && p.submitted_words
+            ? p.submitted_words.slice(0, gapCount)
+            : Array(gapCount).fill(null);
         }
         setPlacements(init);
       });

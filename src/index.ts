@@ -374,8 +374,12 @@ server = Bun.serve({
         if (!player) return json({ error: "Unauthorized" }, 401);
         const pageId = parseInt(req.params.id);
         const prompts = await getPagePrompts(pageId, player.id);
-        // Strip answer and wrong_answer_hints from response so players can't cheat via devtools
-        return json(prompts.map(({ answer, wrong_answer_hints, ...p }) => p));
+        // Strip answer, wrong_answer_hints, and submitted_words from incomplete prompts.
+        // For completed prompts, return submitted_words so the UI can display what the player entered.
+        return json(prompts.map(({ answer, wrong_answer_hints, submitted_words, ...p }) => ({
+          ...p,
+          ...(p.completed ? { submitted_words } : {}),
+        })));
       },
     },
 
