@@ -1,9 +1,30 @@
 import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
+import QRCode from "qrcode";
 import { PromptModal } from "./PromptModal";
 import { Modal, Field, TagInput, RequiredFlagsEditor, inputCls, fieldCls, saveBtnCls, toArr, getErrorMessage } from "./shared";
 import { emptySuggestions } from "./types";
 import type { Page, Folder, Prompt, Suggestions } from "./types";
+
+// ── QR Code Display ───────────────────────────────────────────────────────────
+
+function QRDisplay({ value, label }: { value: string; label: string }) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    QRCode.toDataURL(value, { width: 256, margin: 2, color: { dark: "#000000", light: "#ffffff" } })
+      .then(setDataUrl);
+  }, [value]);
+
+  if (!dataUrl) return null;
+
+  return (
+    <div className="mt-2 mb-1 inline-block bg-white p-3" onClick={(e) => e.stopPropagation()}>
+      <img src={dataUrl} alt={`QR code for ${label}`} className="w-48 h-48" />
+      <p className="text-center text-black text-xs mt-1 font-mono">{label}</p>
+    </div>
+  );
+}
 
 // ── Pages Panel (tree view) ────────────────────────────────────────────────────
 
@@ -66,6 +87,7 @@ export function PagesPanel() {
   const [form, setForm] = useState(defaultPageForm);
   const [editing, setEditing] = useState<Page | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [qrModal, setQrModal] = useState<number | null>(null);
   const [confirmDeleteFolder, setConfirmDeleteFolder] = useState<number | null>(null);
   const [confirmDeletePrompt, setConfirmDeletePrompt] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -659,22 +681,36 @@ export function PagesPanel() {
               {/* Scan code for scan_target pages */}
               {isExpanded && page.page_type === "scan_target" && page.scan_code && (
                 <div
-                  className="flex items-center gap-2 py-1"
+                  className="py-1"
                   style={{ paddingLeft: (depth + 1) * 16 + 8, paddingRight: 8 }}
                 >
-                  <span className="text-muted text-xs w-4 shrink-0 text-center">⎗</span>
-                  <span className="text-muted text-xs shrink-0">QR Code:</span>
-                  <code className="text-cream text-xs font-mono select-all bg-surface-2 px-2 py-0.5">{page.scan_code}</code>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigator.clipboard.writeText(page.scan_code!);
-                      toast.success("Scan code copied");
-                    }}
-                    className="text-gold text-xs hover:text-gold-light transition-colors shrink-0"
-                  >
-                    Copy
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted text-xs w-4 shrink-0 text-center">⎗</span>
+                    <span className="text-muted text-xs shrink-0">Scan Code:</span>
+                    <code className="text-cream text-xs font-mono select-all bg-surface-2 px-2 py-0.5">{page.scan_code}</code>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(page.scan_code!);
+                        toast.success("Scan code copied");
+                      }}
+                      className="text-gold text-xs hover:text-gold-light transition-colors shrink-0"
+                    >
+                      Copy
+                    </button>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        setQrModal((prev) => prev === page.id ? null : page.id);
+                      }}
+                      className="text-gold text-xs hover:text-gold-light transition-colors shrink-0"
+                    >
+                      QR
+                    </button>
+                  </div>
+                  {qrModal === page.id && (
+                    <QRDisplay value={page.scan_code} label={page.title} />
+                  )}
                 </div>
               )}
 
