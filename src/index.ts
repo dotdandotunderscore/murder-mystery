@@ -12,6 +12,7 @@ import {
   deletePlayer,
   getAllPages,
   getPageByCodeForPlayer,
+  getPageByScanCode,
   createPage,
   updatePage,
   deletePage,
@@ -141,7 +142,7 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
     await removePlayerWordsByText(player.id, page.removes_words);
   }
 
-  const { visible_to_roles, visible_to_players, required_flags, removes_flags, removes_words, ...pageData } = page;
+  const { visible_to_roles, visible_to_players, required_flags, removes_flags, removes_words, scan_code, ...pageData } = page;
   return json(pageData);
 }
 
@@ -193,21 +194,30 @@ server = Bun.serve({
       },
     },
 
-    // --- QR scan unlock (grants scanned_<phrase> flag before unlock check) ---
+    // --- QR scan unlock (by UUID scan_code — preferred for scan_target pages) ---
 
     "/api/pages/scan-unlock": {
       POST: async (req) => {
         const player = await getCurrentPlayer(req);
         if (!player) return json({ error: "Unauthorized" }, 401);
 
-        const body = (await req.json()) as { code_phrase: string };
+        const body = (await req.json()) as { scan_code?: string; code_phrase?: string };
+
+        // Try UUID-based scan first (new approach)
+        if (body.scan_code) {
+          const page = await getPageByScanCode(body.scan_code);
+          if (!page) return json({ error: "Unknown code, go find an admin" }, 404);
+
+          const codePhrase = page.code_phrase;
+          await grantPlayerFlags(player.id, [`scanned_${codePhrase}`]);
+          return unlockPage(player, codePhrase, true);
+        }
+
+        // Fallback: legacy code_phrase-based scan
         const codePhrase = body.code_phrase?.trim()?.toLowerCase();
         if (!codePhrase) return json({ error: "Unknown code, go find an admin" }, 404);
 
-        // Grant the scanned flag before the required-flags check so pages can
-        // use required_flags: ["scanned_<phrase>"] to block manual entry.
         await grantPlayerFlags(player.id, [`scanned_${codePhrase}`]);
-
         return unlockPage(player, codePhrase, true);
       },
     },

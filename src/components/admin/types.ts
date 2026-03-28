@@ -31,6 +31,7 @@ export interface Page {
   removes_flags: string[] | null;
   removes_words: string[] | null;
   game_config: Record<string, unknown> | null;
+  scan_code: string | null;
   sort_order: number;
   folder_id: number | null;
 }

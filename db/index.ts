@@ -74,6 +74,7 @@ export interface Page {
   removes_flags: string[] | null;
   removes_words: string[] | null;
   game_config: Record<string, unknown> | null;
+  scan_code: string | null;
   sort_order: number;
   folder_id: number | null;
   created_at: Date;
@@ -184,6 +185,9 @@ export async function initializeDatabase() {
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS removes_flags TEXT[]`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS removes_words TEXT[]`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS game_config JSONB`;
+  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS scan_code UUID`;
+  // Auto-populate scan_code for existing scan_target pages that don't have one
+  await sql`UPDATE pages SET scan_code = gen_random_uuid() WHERE page_type = 'scan_target' AND scan_code IS NULL`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS player_words (
@@ -369,6 +373,11 @@ export async function getPageByCode(codePhrase: string): Promise<Page | null> {
   return rows[0] ? parsePageRow(rows[0]) : null;
 }
 
+export async function getPageByScanCode(scanCode: string): Promise<Page | null> {
+  const rows = await sql`SELECT * FROM pages WHERE scan_code = ${scanCode} AND page_type = 'scan_target'`;
+  return rows[0] ? parsePageRow(rows[0]) : null;
+}
+
 export async function getPageByCodeForPlayer(
   codePhrase: string,
   playerId: number,
@@ -458,19 +467,21 @@ export async function createPage(data: {
     const [row] = await sql`SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM pages WHERE folder_id ${folderId === null ? sql`IS NULL` : sql`= ${folderId}`}`;
     sortOrder = row.next;
   }
+  const pageType = data.page_type ?? "text";
+  const scanCode = pageType === "scan_target" ? crypto.randomUUID() : null;
   const [page] = await sql`
     INSERT INTO pages (
       code_phrase, title, content, page_type,
       visible_to_roles, visible_to_players,
       required_flags, required_flags_hints,
       grants_flags, grants_words,
-      removes_flags, removes_words, game_config, sort_order, folder_id
+      removes_flags, removes_words, game_config, scan_code, sort_order, folder_id
     )
     VALUES (
       ${data.code_phrase.trim().toLowerCase()},
       ${data.title},
       ${data.content ?? ""},
-      ${data.page_type ?? "text"},
+      ${pageType},
       ${pgTextArray(normalizeLower(data.visible_to_roles))},
       ${pgIntArray(data.visible_to_players)},
       ${pgTextArray(normalizeLower(data.required_flags))},
@@ -480,6 +491,7 @@ export async function createPage(data: {
       ${pgTextArray(normalizeLower(data.removes_flags))},
       ${pgTextArray(normalizeUpper(data.removes_words))},
       ${data.game_config ? JSON.stringify(data.game_config) : null},
+      ${scanCode},
       ${sortOrder},
       ${folderId}
     )
@@ -508,12 +520,18 @@ export async function updatePage(
     folder_id?: number | null;
   }
 ): Promise<Page | null> {
+  const pageType = data.page_type ?? "text";
+  // Auto-manage scan_code: generate if becoming scan_target and doesn't have one,
+  // clear if changing away from scan_target
+  const scanCodeExpr = pageType === "scan_target"
+    ? sql`COALESCE(pages.scan_code, gen_random_uuid())`
+    : sql`NULL`;
   const [page] = await sql`
     UPDATE pages SET
       code_phrase = ${data.code_phrase.trim().toLowerCase()},
       title = ${data.title},
       content = ${data.content ?? ""},
-      page_type = ${data.page_type ?? "text"},
+      page_type = ${pageType},
       visible_to_roles = ${pgTextArray(normalizeLower(data.visible_to_roles))},
       visible_to_players = ${pgIntArray(data.visible_to_players)},
       required_flags = ${pgTextArray(normalizeLower(data.required_flags))},
@@ -523,6 +541,7 @@ export async function updatePage(
       removes_flags = ${pgTextArray(normalizeLower(data.removes_flags))},
       removes_words = ${pgTextArray(normalizeUpper(data.removes_words))},
       game_config = ${data.game_config ? JSON.stringify(data.game_config) : null},
+      scan_code = ${scanCodeExpr},
       sort_order = COALESCE(${data.sort_order !== undefined ? data.sort_order : null}, pages.sort_order),
       folder_id = ${data.folder_id ?? null}
     WHERE id = ${id}

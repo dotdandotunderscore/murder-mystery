@@ -656,6 +656,28 @@ export function PagesPanel() {
                 </span>
               </div>
 
+              {/* Scan code for scan_target pages */}
+              {isExpanded && page.page_type === "scan_target" && page.scan_code && (
+                <div
+                  className="flex items-center gap-2 py-1"
+                  style={{ paddingLeft: (depth + 1) * 16 + 8, paddingRight: 8 }}
+                >
+                  <span className="text-muted text-xs w-4 shrink-0 text-center">⎗</span>
+                  <span className="text-muted text-xs shrink-0">QR Code:</span>
+                  <code className="text-cream text-xs font-mono select-all bg-surface-2 px-2 py-0.5">{page.scan_code}</code>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigator.clipboard.writeText(page.scan_code!);
+                      toast.success("Scan code copied");
+                    }}
+                    className="text-gold text-xs hover:text-gold-light transition-colors shrink-0"
+                  >
+                    Copy
+                  </button>
+                </div>
+              )}
+
               {/* Inline prompts */}
               {isExpanded && (
                 <div>

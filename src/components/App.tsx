@@ -177,17 +177,22 @@ function AppInner() {
 
   const handleScan = async (value: string): Promise<boolean> => {
     try {
+      // If the scanned value looks like a UUID, send it as scan_code; otherwise as code_phrase
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim());
+      const body = isUUID
+        ? { scan_code: value.trim() }
+        : { code_phrase: value.trim() };
       const res = await fetch("/api/pages/scan-unlock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code_phrase: value.trim() }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (res.ok) {
         setClue(data);
         setCurrentPage("clue");
         setCodeInput("");
-        pushView("clue", value.trim().toLowerCase());
+        pushView("clue", data.code_phrase ?? value.trim().toLowerCase());
         return true;
       } else {
         const hints: string[] = data.hints ?? [];
