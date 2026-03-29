@@ -4,6 +4,7 @@ import QRScanner from "../QRScanner";
 import RichText from "../RichText";
 import CoinFlipGame from "../CoinFlipGame";
 import SlotMachineGame from "../SlotMachineGame";
+import ARScreen from "../ar/ARScreen";
 import { useTradeContext } from "../../context/TradeContext";
 
 interface ClueResult {
@@ -145,8 +146,18 @@ export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps
         />
       )}
 
+      {/* AR page type — grants claimed on marker confirmation */}
+      {clue.page_type === "ar" && (
+        <ARScreen
+          pageId={clue.id}
+          gameConfig={clue.game_config}
+          grantsFlags={clue.grants_flags}
+          grantsWords={clue.grants_words}
+        />
+      )}
+
       {/* Grants panel — shown immediately for non-game page types */}
-      {clue.page_type !== "coin_flip" && clue.page_type !== "slot_machine" && hasGrants && (
+      {clue.page_type !== "coin_flip" && clue.page_type !== "slot_machine" && clue.page_type !== "ar" && hasGrants && (
         <div className="border border-gold/40 bg-gold/5 p-5 mb-6">
           <p className="text-gold text-xs tracking-[0.35em] uppercase mb-3">
             — You Received —

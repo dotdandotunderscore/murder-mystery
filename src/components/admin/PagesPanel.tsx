@@ -931,8 +931,60 @@ export function PagesPanel() {
               <option value="scan_target">Scan Target</option>
               <option value="coin_flip">Coin Flip</option>
               <option value="slot_machine">Slot Machine</option>
+              <option value="ar">AR</option>
             </select>
           </Field>
+          {form.page_type === "ar" && (
+            <>
+              <Field label="Briefing Text" hint="Shown before the camera opens. Supports line breaks.">
+                <textarea
+                  className={inputCls}
+                  rows={3}
+                  value={(form.game_config.briefing_text as string) ?? ""}
+                  onChange={(e) =>
+                    setF("game_config", { ...form.game_config, briefing_text: e.target.value })
+                  }
+                  placeholder="Point your camera at the marker to reveal what's hidden."
+                />
+              </Field>
+              <Field label="Marker Type" hint="Hiro = built-in test marker. Custom = your own .patt file.">
+                <select
+                  className={`${inputCls} cursor-pointer`}
+                  value={(form.game_config.marker_type as string) ?? "hiro"}
+                  onChange={(e) =>
+                    setF("game_config", { ...form.game_config, marker_type: e.target.value })
+                  }
+                >
+                  <option value="hiro">Hiro (default)</option>
+                  <option value="custom">Custom Pattern</option>
+                </select>
+              </Field>
+              {(form.game_config.marker_type as string) === "custom" && (
+                <Field label="Marker Pattern URL" hint="Path to .patt file, e.g. /markers/sigil.patt">
+                  <input
+                    className={inputCls}
+                    value={(form.game_config.marker_url as string) ?? ""}
+                    onChange={(e) =>
+                      setF("game_config", { ...form.game_config, marker_url: e.target.value })
+                    }
+                    placeholder="/markers/custom.patt"
+                  />
+                </Field>
+              )}
+              <Field label="Hold Duration (seconds)" hint="How long the player must hold the marker in view. 0 = instant.">
+                <input
+                  className={inputCls}
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={(form.game_config.hold_duration as number) ?? 0}
+                  onChange={(e) =>
+                    setF("game_config", { ...form.game_config, hold_duration: parseFloat(e.target.value) || 0 })
+                  }
+                />
+              </Field>
+            </>
+          )}
           {form.page_type === "coin_flip" && (
             <Field label="Flips Required" hint="Consecutive correct predictions to win">
               <input
