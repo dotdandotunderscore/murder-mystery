@@ -936,17 +936,6 @@ export function PagesPanel() {
           </Field>
           {form.page_type === "ar" && (
             <>
-              <Field label="Briefing Text" hint="Shown before the camera opens. Supports line breaks.">
-                <textarea
-                  className={inputCls}
-                  rows={3}
-                  value={(form.game_config.briefing_text as string) ?? ""}
-                  onChange={(e) =>
-                    setF("game_config", { ...form.game_config, briefing_text: e.target.value })
-                  }
-                  placeholder="Point your camera at the marker to reveal what's hidden."
-                />
-              </Field>
               <Field label="Target File URL" hint="Path to compiled .mind file. Use hiukim.github.io/mind-ar-js-doc/tools/compile to generate from any image.">
                 <input
                   className={inputCls}
