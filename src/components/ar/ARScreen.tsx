@@ -24,6 +24,8 @@ export default function ARScreen({ pageId, gameConfig, grantsFlags, grantsWords 
   const config = gameConfig ?? {};
   const mindFileUrl = (config.mind_file_url as string) || "/targets/default.mind";
   const holdDuration = (config.hold_duration as number) || 0;
+  const entityOffset = (config.entity_offset as string) || "0, 0, 0.5";
+  const entityScale = (config.entity_scale as number) || 0.8;
 
   const { refreshInventory, refreshFlags } = useTradeContext();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -65,6 +67,8 @@ export default function ARScreen({ pageId, gameConfig, grantsFlags, grantsWords 
   const { loadState, error, targetVisible } = useARScene({
     containerRef,
     mindFileUrl,
+    entityOffset,
+    entityScale,
     onTargetFound: handleTargetFound,
     onTargetLost: handleTargetLost,
   });

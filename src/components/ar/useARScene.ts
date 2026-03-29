@@ -6,6 +6,8 @@ export type ARLoadState = "loading" | "ready" | "error";
 export interface UseARSceneOptions {
   containerRef: React.RefObject<HTMLDivElement | null>;
   mindFileUrl: string;
+  entityOffset?: string;  // "x, y, z" — default "0, 0, 0.5"
+  entityScale?: number;   // default 0.8
   onTargetFound?: () => void;
   onTargetLost?: () => void;
 }
@@ -13,6 +15,8 @@ export interface UseARSceneOptions {
 export function useARScene({
   containerRef,
   mindFileUrl,
+  entityOffset = "0, 0, 0.5",
+  entityScale = 0.8,
   onTargetFound,
   onTargetLost,
 }: UseARSceneOptions) {
@@ -61,7 +65,7 @@ export function useARScene({
         const { renderer, scene, camera } = mindarThree;
         const anchor = mindarThree.addAnchor(0);
 
-        const sigil = buildSigilEntity();
+        const sigil = buildSigilEntity(entityOffset, entityScale);
         anchor.group.add(sigil.group);
 
         anchor.onTargetFound = () => {
@@ -165,47 +169,84 @@ function cleanup(mindarThree: any, container: HTMLElement) {
 }
 
 /**
- * Nested wireframe polyhedra floating above the target.
+ * Nested wireframe dice polyhedra (d20 → d12 → d8 → d6 → d4) in
+ * eldritch green, each with a "glow" shell for bloom effect.
  *
- * MindAR coordinate system: the target image spans roughly -0.5 to 0.5
- * on both X and Y axes at z=0. We scale the whole sigil to fit within
- * that space and float it slightly above (positive Z = towards camera).
+ * MindAR coords: target image spans ~-0.5 to 0.5 on X/Y at z=0.
  */
-function buildSigilEntity() {
+function buildSigilEntity(offsetStr: string, scale: number) {
   const group = new THREE.Group();
-  group.position.set(0, 0, 0.5);
-  group.scale.setScalar(0.5);
+  const parts = offsetStr.split(",").map((s) => parseFloat(s.trim()) || 0);
+  group.position.set(parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0.5);
+  group.scale.setScalar(scale);
 
+  // Lovecraftian green palette: pale outer → sickly bright core
   const layers = [
-    { geo: new THREE.IcosahedronGeometry(0.3, 0), color: 0xe8c87e, opacity: 0.5, axis: [0, 1, 0], speed: 0.45 },
-    { geo: new THREE.DodecahedronGeometry(0.24), color: 0xff6600, opacity: 0.65, axis: [0, 1, 0], speed: 0.7, rot: [Math.PI / 4, 0, Math.PI / 9] as const },
-    { geo: new THREE.OctahedronGeometry(0.18), color: 0xff3300, opacity: 0.8, axis: [1, -1, 0], speed: 0.9 },
-    { geo: new THREE.TetrahedronGeometry(0.12), color: 0xcc0000, opacity: 1, axis: [1, 1, 0], speed: 1.4, rot: [Math.PI / 6, 0, Math.PI / 6] as const },
-    { geo: new THREE.IcosahedronGeometry(0.06, 0), color: 0xffddaa, opacity: 1, axis: [-1, 1, -1], speed: 2.1 },
+    // d20 — outermost, slow rotation
+    { geo: new THREE.IcosahedronGeometry(0.38, 0), color: 0x1a4a3a, glow: 0x2d8a6a, opacity: 0.4, axis: [0, 1, 0], speed: 0.35 },
+    // d12
+    { geo: new THREE.DodecahedronGeometry(0.30), color: 0x2d7a5a, glow: 0x40c090, opacity: 0.55, axis: [0, 1, 0], speed: 0.55, rot: [Math.PI / 4, 0, Math.PI / 9] as const },
+    // d8
+    { geo: new THREE.OctahedronGeometry(0.22), color: 0x40aa70, glow: 0x60e0a0, opacity: 0.7, axis: [1, -1, 0], speed: 0.75 },
+    // d6
+    { geo: new THREE.BoxGeometry(0.28, 0.28, 0.28), color: 0x50cc80, glow: 0x80ffbb, opacity: 0.85, axis: [1, 1, 0], speed: 1.1, rot: [Math.PI / 6, 0, Math.PI / 6] as const },
+    // d4 — innermost, fast spin, brightest
+    { geo: new THREE.TetrahedronGeometry(0.14), color: 0x80ffbb, glow: 0xccffee, opacity: 1, axis: [-1, 1, -1], speed: 1.8 },
   ];
 
-  const meshes: { mesh: THREE.Mesh; axis: THREE.Vector3; speed: number }[] = [];
+  const meshes: { mesh: THREE.Group; axis: THREE.Vector3; speed: number }[] = [];
 
   for (const l of layers) {
-    const mat = new THREE.MeshBasicMaterial({
+    const dieGroup = new THREE.Group();
+
+    // Core wireframe — bright, full opacity
+    const coreMat = new THREE.MeshBasicMaterial({
       color: l.color,
       wireframe: true,
+      wireframeLinewidth: 2,
       transparent: l.opacity < 1,
       opacity: l.opacity,
     });
-    const mesh = new THREE.Mesh(l.geo, mat);
-    if (l.rot) mesh.rotation.set(l.rot[0], l.rot[1], l.rot[2]);
-    group.add(mesh);
-    meshes.push({ mesh, axis: new THREE.Vector3(...l.axis).normalize(), speed: l.speed });
+    dieGroup.add(new THREE.Mesh(l.geo, coreMat));
+
+    // Glow shell — slightly larger, very transparent, same wireframe
+    const glowGeo = l.geo.clone();
+    glowGeo.scale(1.08, 1.08, 1.08);
+    const glowMat = new THREE.MeshBasicMaterial({
+      color: l.glow,
+      wireframe: true,
+      wireframeLinewidth: 2,
+      transparent: true,
+      opacity: l.opacity * 0.3,
+    });
+    dieGroup.add(new THREE.Mesh(glowGeo, glowMat));
+
+    // Even larger faint shell for outer bloom
+    const bloomGeo = l.geo.clone();
+    bloomGeo.scale(1.2, 1.2, 1.2);
+    const bloomMat = new THREE.MeshBasicMaterial({
+      color: l.glow,
+      wireframe: true,
+      wireframeLinewidth: 1,
+      transparent: true,
+      opacity: l.opacity * 0.12,
+    });
+    dieGroup.add(new THREE.Mesh(bloomGeo, bloomMat));
+
+    if (l.rot) dieGroup.rotation.set(l.rot[0], l.rot[1], l.rot[2]);
+    group.add(dieGroup);
+    meshes.push({ mesh: dieGroup, axis: new THREE.Vector3(...l.axis).normalize(), speed: l.speed });
   }
 
   const clock = new THREE.Clock();
+  const baseZ = group.position.z;
 
   return {
     group,
     update() {
       const delta = clock.getDelta();
-      group.position.z = 0.5 + Math.sin(clock.elapsedTime * 2.1) * 0.03;
+      // Breathing float along Z (towards/away from camera)
+      group.position.z = baseZ + Math.sin(clock.elapsedTime * 2.1) * 0.04;
       for (const { mesh, axis, speed } of meshes) {
         mesh.rotateOnAxis(axis, speed * delta);
       }

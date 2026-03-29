@@ -958,6 +958,29 @@ export function PagesPanel() {
                   }
                 />
               </Field>
+              <Field label="Entity Offset (X, Y, Z)" hint="Position offset from marker centre. Y = up, Z = towards camera. e.g. 0, 1.5, 0.5">
+                <input
+                  className={inputCls}
+                  value={(form.game_config.entity_offset as string) ?? "0, 0, 0.5"}
+                  onChange={(e) =>
+                    setF("game_config", { ...form.game_config, entity_offset: e.target.value })
+                  }
+                  placeholder="0, 0, 0.5"
+                />
+              </Field>
+              <Field label="Entity Scale" hint="Size multiplier. Default 0.8.">
+                <input
+                  className={inputCls}
+                  type="number"
+                  min={0.1}
+                  max={5}
+                  step={0.1}
+                  value={(form.game_config.entity_scale as number) ?? 0.8}
+                  onChange={(e) =>
+                    setF("game_config", { ...form.game_config, entity_scale: parseFloat(e.target.value) || 0.8 })
+                  }
+                />
+              </Field>
             </>
           )}
           {form.page_type === "coin_flip" && (
