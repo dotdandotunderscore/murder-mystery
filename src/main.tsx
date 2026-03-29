@@ -4,8 +4,15 @@ import { Toaster } from "sonner";
 import { PlayerProvider } from "./context/PlayerContext";
 import App from "./components/App";
 
+// __BUILD_VERSION__ is replaced at build time by build.ts define.
+// In dev mode (bun --hot), it's never replaced, so we catch the ReferenceError.
+let buildVersion: string;
+try {
+  buildVersion = __BUILD_VERSION__;
+} catch {
+  buildVersion = "dev · " + new Date().toLocaleTimeString();
+}
 declare const __BUILD_VERSION__: string;
-const buildVersion = typeof __BUILD_VERSION__ !== "undefined" ? __BUILD_VERSION__ : "dev · " + new Date().toLocaleTimeString();
 
 const elem = document.getElementById("root")!;
 const app = (
