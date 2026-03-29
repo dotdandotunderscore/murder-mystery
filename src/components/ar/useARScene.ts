@@ -77,6 +77,17 @@ export function useARScene({
         await mindarThree.start();
         console.log("[AR] start() resolved OK");
 
+        // MindAR sets video z-index to -2, which pushes it behind the
+        // container's background. Fix the stacking so everything is visible.
+        const video = container.querySelector("video");
+        if (video) video.style.zIndex = "0";
+        // Canvas (WebGL) should be on top of video
+        const canvas = container.querySelector("canvas");
+        if (canvas) canvas.style.zIndex = "1";
+        // CSS3D renderer div (3rd child) on top of canvas
+        const cssDiv = container.children[2] as HTMLElement | undefined;
+        if (cssDiv) cssDiv.style.zIndex = "2";
+
         if (stopped) {
           cleanup(mindarThree, container);
           return;

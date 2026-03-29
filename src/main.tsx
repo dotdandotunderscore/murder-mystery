@@ -5,7 +5,7 @@ import { PlayerProvider } from "./context/PlayerContext";
 import App from "./components/App";
 
 declare const __BUILD_VERSION__: string;
-const buildVersion = typeof __BUILD_VERSION__ !== "undefined" ? __BUILD_VERSION__ : "dev";
+const buildVersion = typeof __BUILD_VERSION__ !== "undefined" ? __BUILD_VERSION__ : "dev · " + new Date().toLocaleTimeString();
 
 const elem = document.getElementById("root")!;
 const app = (
