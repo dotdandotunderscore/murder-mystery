@@ -736,6 +736,14 @@ server = Bun.serve({
       },
     },
 
+    // --- Static files from public/ ---
+    "/targets/*": async (req) => {
+      const url = new URL(req.url);
+      const file = Bun.file(`public${url.pathname}`);
+      if (await file.exists()) return new Response(file);
+      return json({ error: "Not found" }, 404);
+    },
+
     // --- Frontend catch-all ---
     "/*": index,
   },

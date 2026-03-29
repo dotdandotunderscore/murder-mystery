@@ -131,6 +131,7 @@ const result = await Bun.build({
   sourcemap: "linked",
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
+    "__BUILD_VERSION__": JSON.stringify(new Date().toISOString().slice(0, 16).replace("T", " ")),
   },
   ...cliConfig,
 });

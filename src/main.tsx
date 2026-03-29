@@ -4,12 +4,18 @@ import { Toaster } from "sonner";
 import { PlayerProvider } from "./context/PlayerContext";
 import App from "./components/App";
 
+declare const __BUILD_VERSION__: string;
+const buildVersion = typeof __BUILD_VERSION__ !== "undefined" ? __BUILD_VERSION__ : "dev";
+
 const elem = document.getElementById("root")!;
 const app = (
   <StrictMode>
     <PlayerProvider>
       <App />
     </PlayerProvider>
+    <div style={{ position: "fixed", bottom: 4, right: 6, fontSize: 9, color: "rgba(255,255,255,0.15)", pointerEvents: "none", zIndex: 9999, fontFamily: "monospace" }}>
+      {buildVersion}
+    </div>
     <Toaster
       theme="dark"
       position="top-center"

@@ -28,12 +28,27 @@ export function useARScene({
 
     const start = async () => {
       try {
+        console.log("[AR] importing MindAR...");
         const { MindARThree } = await import(
           // @ts-ignore
           "mind-ar/dist/mindar-image-three.prod.js"
         );
+        console.log("[AR] MindAR imported OK");
 
         if (stopped) return;
+
+        // Pre-check: does the .mind file exist?
+        const check = await fetch(mindFileUrl, { method: "HEAD" });
+        if (!check.ok) {
+          throw new Error(`Target file not found: ${mindFileUrl} (${check.status})`);
+        }
+        console.log("[AR] target file exists:", mindFileUrl);
+
+        const rect = container.getBoundingClientRect();
+        console.log("[AR] container size:", rect.width, "x", rect.height);
+        if (rect.width === 0 || rect.height === 0) {
+          throw new Error("AR container has zero dimensions — cannot start camera");
+        }
 
         const mindarThree = new MindARThree({
           container,
@@ -58,7 +73,9 @@ export function useARScene({
           onTargetLost?.();
         };
 
+        console.log("[AR] calling mindarThree.start()...");
         await mindarThree.start();
+        console.log("[AR] start() resolved OK");
 
         if (stopped) {
           cleanup(mindarThree, container);
@@ -78,8 +95,8 @@ export function useARScene({
         setError(
           message.includes("Permission")
             ? "Camera permission denied. Please allow camera access and try again."
-            : message.includes("404") || message.includes("fetch")
-              ? "AR target file not found. Check the target file URL in admin settings."
+            : message.includes("not found") || message.includes("404")
+              ? `AR target file not found: ${mindFileUrl}`
               : `Could not start AR: ${message}`
         );
         setLoadState("error");
