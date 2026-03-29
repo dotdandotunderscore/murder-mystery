@@ -947,30 +947,16 @@ export function PagesPanel() {
                   placeholder="Point your camera at the marker to reveal what's hidden."
                 />
               </Field>
-              <Field label="Marker Type" hint="Hiro = built-in test marker. Custom = your own .patt file.">
-                <select
-                  className={`${inputCls} cursor-pointer`}
-                  value={(form.game_config.marker_type as string) ?? "hiro"}
+              <Field label="Target File URL" hint="Path to compiled .mind file. Use hiukim.github.io/mind-ar-js-doc/tools/compile to generate from any image.">
+                <input
+                  className={inputCls}
+                  value={(form.game_config.mind_file_url as string) ?? ""}
                   onChange={(e) =>
-                    setF("game_config", { ...form.game_config, marker_type: e.target.value })
+                    setF("game_config", { ...form.game_config, mind_file_url: e.target.value })
                   }
-                >
-                  <option value="hiro">Hiro (default)</option>
-                  <option value="custom">Custom Pattern</option>
-                </select>
+                  placeholder="/targets/my-image.mind"
+                />
               </Field>
-              {(form.game_config.marker_type as string) === "custom" && (
-                <Field label="Marker Pattern URL" hint="Path to .patt file, e.g. /markers/sigil.patt">
-                  <input
-                    className={inputCls}
-                    value={(form.game_config.marker_url as string) ?? ""}
-                    onChange={(e) =>
-                      setF("game_config", { ...form.game_config, marker_url: e.target.value })
-                    }
-                    placeholder="/markers/custom.patt"
-                  />
-                </Field>
-              )}
               <Field label="Hold Duration (seconds)" hint="How long the player must hold the marker in view. 0 = instant.">
                 <input
                   className={inputCls}

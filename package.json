@@ -13,16 +13,19 @@
     "@zxing/library": "^0.21.3",
     "bun-plugin-tailwind": "^0.0.15",
     "lucide-react": "^0.525.0",
+    "mind-ar": "^1.2.5",
     "qrcode": "^1.5.4",
     "react": "^19",
     "react-dom": "^19",
     "sonner": "^2.0.7",
-    "tailwindcss": "^4.1.11"
+    "tailwindcss": "^4.1.11",
+    "three": "^0.183.2"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
-    "@types/react-dom": "^19"
+    "@types/react-dom": "^19",
+    "@types/three": "^0.183.1"
   }
 }

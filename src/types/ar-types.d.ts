@@ -1,43 +1,33 @@
-/**
- * Type declarations for A-Frame and AR.js custom elements.
- * Extends React's JSX IntrinsicElements to allow A-Frame tags in TSX.
- */
+/** MindAR Three.js mode — no bundled type declarations */
+declare module "mind-ar/dist/mindar-image-three.prod.js" {
+  import type { WebGLRenderer, Scene, PerspectiveCamera, Group } from "three";
 
-import "react";
+  interface MindARThreeOptions {
+    container: HTMLElement;
+    imageTargetSrc: string;
+    maxTrack?: number;
+    uiLoading?: string;
+    uiScanning?: string;
+    uiError?: string;
+    filterMinCF?: number | null;
+    filterBeta?: number | null;
+    warmupTolerance?: number | null;
+    missTolerance?: number | null;
+  }
 
-declare module "react" {
-  namespace JSX {
-    interface IntrinsicElements {
-      "a-scene": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
-        embedded?: boolean | string;
-        arjs?: string;
-        renderer?: string;
-        "vr-mode-ui"?: string;
-        "loading-screen"?: string;
-      };
-      "a-marker": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
-        preset?: string;
-        type?: string;
-        url?: string;
-        smooth?: string | boolean;
-        "smooth-count"?: string | number;
-        "smooth-tolerance"?: string | number;
-      };
-      "a-entity": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
-        geometry?: string;
-        material?: string;
-        position?: string;
-        rotation?: string;
-        scale?: string;
-        animation?: string;
-        animation__breathe?: string;
-        animation__pulse?: string;
-        light?: string;
-        "gltf-model"?: string;
-      };
-      "a-camera": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
-        position?: string;
-      };
-    }
+  interface Anchor {
+    group: Group;
+    onTargetFound: (() => void) | null;
+    onTargetLost: (() => void) | null;
+  }
+
+  export class MindARThree {
+    constructor(options: MindARThreeOptions);
+    renderer: WebGLRenderer;
+    scene: Scene;
+    camera: PerspectiveCamera;
+    addAnchor(targetIndex: number): Anchor;
+    start(): Promise<void>;
+    stop(): void;
   }
 }
