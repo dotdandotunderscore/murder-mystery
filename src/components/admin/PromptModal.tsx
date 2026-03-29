@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { toRichTemplate, fromRichTemplate, TemplateEditor } from "./TemplateEditor";
-import { Modal, Field, TagInput, WrongAnswerHintsEditor, inputCls, saveBtnCls, toArr, getErrorMessage } from "./shared";
+import { Modal, Field, Toggle, TagInput, WrongAnswerHintsEditor, inputCls, saveBtnCls, toArr, getErrorMessage } from "./shared";
 import type { Prompt, Page, Suggestions } from "./types";
 
 // ── Prompt Modal ───────────────────────────────────────────────────────────────
@@ -16,6 +16,7 @@ export const defaultPromptForm = {
   removes_words: [] as string[],
   success_text: "",
   wrong_answer_hints: [] as { clue: string; hint: string }[],
+  allow_any_order: false,
   sort_order: 0,
 };
 
@@ -49,6 +50,7 @@ export function PromptModal({ open, onClose, editing, presetPageId, pages, sugge
         removes_words: editing.removes_words ?? [],
         success_text: editing.success_text ?? "",
         wrong_answer_hints: wah,
+        allow_any_order: editing.allow_any_order ?? false,
         sort_order: editing.sort_order,
       });
     } else {
@@ -78,6 +80,7 @@ export function PromptModal({ open, onClose, editing, presetPageId, pages, sugge
       removes_words: toArr(form.removes_words as string[]),
       success_text: form.success_text.trim() || null,
       wrong_answer_hints,
+      allow_any_order: form.allow_any_order,
       sort_order: form.sort_order,
     };
     const res = editing
@@ -132,6 +135,16 @@ export function PromptModal({ open, onClose, editing, presetPageId, pages, sugge
             wordSuggestions={suggestions.words}
           />
         </Field>
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <p className="text-gold text-xs tracking-widest uppercase">Accept Any Order</p>
+            <p className="text-muted text-xs mt-1">Words can be placed in any gap</p>
+          </div>
+          <Toggle
+            checked={form.allow_any_order}
+            onChange={(v) => set("allow_any_order", v)}
+          />
+        </div>
         <Field label="Wrong Answer Hints" hint="Show a hint when a specific clue is used incorrectly">
           <WrongAnswerHintsEditor
             rows={form.wrong_answer_hints as { clue: string; hint: string }[]}

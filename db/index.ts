@@ -106,6 +106,7 @@ export interface Prompt {
   removes_words: string[] | null;
   success_text: string | null;
   wrong_answer_hints: Record<string, string> | null;
+  allow_any_order: boolean;
   sort_order: number;
   created_at: Date;
 }
@@ -219,6 +220,7 @@ export async function initializeDatabase() {
   await sql`ALTER TABLE player_prompt_completions ADD COLUMN IF NOT EXISTS submitted_words TEXT[]`;
   await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS removes_words TEXT[]`;
   await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS wrong_answer_hints JSONB`;
+  await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS allow_any_order BOOLEAN DEFAULT false`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS player_prompt_completions (
@@ -762,10 +764,11 @@ export async function createPrompt(data: {
   removes_words?: string[] | null;
   success_text?: string | null;
   wrong_answer_hints?: Record<string, string> | null;
+  allow_any_order?: boolean;
   sort_order?: number;
 }): Promise<Prompt> {
   const [prompt] = await sql`
-    INSERT INTO prompts (page_id, question, template, answer, grants_flags, grants_words, removes_flags, removes_words, success_text, wrong_answer_hints, sort_order)
+    INSERT INTO prompts (page_id, question, template, answer, grants_flags, grants_words, removes_flags, removes_words, success_text, wrong_answer_hints, allow_any_order, sort_order)
     VALUES (
       ${data.page_id},
       ${data.question},
@@ -777,6 +780,7 @@ export async function createPrompt(data: {
       ${pgTextArray(normalizeUpper(data.removes_words))},
       ${data.success_text ?? null},
       ${normalizeWrongAnswerHints(data.wrong_answer_hints)},
+      ${data.allow_any_order ?? false},
       ${data.sort_order ?? 0}
     )
     RETURNING *
@@ -797,6 +801,7 @@ export async function updatePrompt(
     removes_words?: string[] | null;
     success_text?: string | null;
     wrong_answer_hints?: Record<string, string> | null;
+    allow_any_order?: boolean;
     sort_order?: number;
   }
 ): Promise<Prompt | null> {
@@ -812,6 +817,7 @@ export async function updatePrompt(
       removes_words = ${pgTextArray(normalizeUpper(data.removes_words))},
       success_text = ${data.success_text ?? null},
       wrong_answer_hints = ${normalizeWrongAnswerHints(data.wrong_answer_hints)},
+      allow_any_order = ${data.allow_any_order ?? false},
       sort_order = ${data.sort_order ?? 0}
     WHERE id = ${id}
     RETURNING *
@@ -956,12 +962,33 @@ export async function submitPromptAnswer(
   if (!prompt) return { correct: false };
 
   const normalize = (s: string) => s.trim().toUpperCase();
-  const correct =
-    prompt.answer.length === words.length &&
-    prompt.answer.every((a, i) => {
-      const alternatives = a.split("|").map((s) => s.trim().toUpperCase());
-      return alternatives.includes(normalize(words[i] ?? ""));
-    });
+  let correct: boolean;
+
+  if (prompt.allow_any_order) {
+    // Each submitted word must match a different answer slot (no duplicates)
+    if (prompt.answer.length !== words.length) {
+      correct = false;
+    } else {
+      const used = new Set<number>();
+      correct = words.every((w) => {
+        const norm = normalize(w);
+        const idx = prompt.answer.findIndex((a, i) => {
+          if (used.has(i)) return false;
+          return a.split("|").map((s) => s.trim().toUpperCase()).includes(norm);
+        });
+        if (idx === -1) return false;
+        used.add(idx);
+        return true;
+      });
+    }
+  } else {
+    correct =
+      prompt.answer.length === words.length &&
+      prompt.answer.every((a, i) => {
+        const alternatives = a.split("|").map((s) => s.trim().toUpperCase());
+        return alternatives.includes(normalize(words[i] ?? ""));
+      });
+  }
 
   if (!correct) {
     const hints: string[] = [];
