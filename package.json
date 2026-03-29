@@ -21,6 +21,9 @@
     "tailwindcss": "^4.1.11",
     "three": "^0.183.2"
   },
+  "trustedDependencies": [
+    "bun-plugin-tailwind"
+  ],
   "devDependencies": {
     "@types/bun": "latest",
     "@types/qrcode": "^1.5.6",
