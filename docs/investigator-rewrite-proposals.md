@@ -25,7 +25,7 @@ The bones are decent here — the opening line is good, and "all legs and danger
 >
 > The steps to the Broken Drum Casino stretch out ahead of you, slick with rain that's been falling since before you started caring.
 >
-> Mrs. Sage hired you three days ago. Beautiful woman. The kind of beautiful that makes a man forget she's paying him by the hour. Her husband vanished two weeks back and the trail — what little of it there was — went cold at these doors.
+> Mrs. Sage hired you three days ago. Beautiful woman. The kind of beautiful that makes you forget she's paying by the hour. Her husband vanished two weeks back and the trail — what little of it there was — went cold at these doors.
 >
 > You figure the man's in there right now. Gambling away her money, drinking away his conscience, keeping company with someone younger. That's usually the story. Boring story. But she's paying, and your landlord doesn't accept apologies.
 >
@@ -42,7 +42,7 @@ The bones are decent here — the opening line is good, and "all legs and danger
 This is the first real interaction: the player needs to trade with someone to get a lighter, then use it with their cigarette to complete the prompt. The text should establish the craving, make it clear they're missing something, and nudge them toward talking to other people — framing the trade mechanic as a natural social interaction rather than a game tutorial.
 
 ### Proposed
-> You pat your coat down. Cigarettes — yes. You always have cigarettes. A man without cigarettes in this city is a man without friends.
+> You pat your coat down. Cigarettes — yes. You always have cigarettes. Nobody without cigarettes in this city has any friends.
 >
 > But no lighter. You must have left it at the office. Or the bar. Or one of the dozen places you've been trying to forget this week.
 >
@@ -88,9 +88,9 @@ This seems like an alternative entry point where the player finds shelter before
 "Masks of their forced smiles stretched across their tight skin" is overwritten — trying too hard. "Creature that skulks" is more gothic horror than noir. The last line drops out of second person into first ("I should start") which breaks the voice. The champagne beat is nice but needs to feel more like a detective casing a room than a poet observing one.
 
 ### Proposed
-> So this is the Broken Drum. Chandeliers, champagne, and enough diamonds to blind a man at forty paces. Everyone here is smiling. Nobody here is happy.
+> So this is the Broken Drum. Chandeliers, champagne, and enough diamonds to blind you at forty paces. Everyone here is smiling. Nobody here is happy.
 >
-> A waiter drifts past with a tray of drinks. You take one. Then another. You're not a champagne man but it's free, and free is your favourite flavour.
+> A waiter drifts past with a tray of drinks. You take one. Then another. You're no champagne drinker but it's free, and free is your favourite flavour.
 >
 > Somewhere in this crowd of silk and self-importance, [[Mr. Sage]] is spending his wife's money and his own borrowed time. Time to start asking questions. You're good at that. It's the answers you have trouble with.
 
@@ -152,7 +152,7 @@ Title is a Star Wars quote — breaks the period feel. "Dark stomach" is a nice 
 > You step into Madame Web's den. Incense hangs around her and wraps around you.
 
 ### Notes
-This is the first encounter with Madame Web — before the tarot prompt and before the reversed-code puzzle. It's only two lines and the order is wrong (she speaks before you enter). This page needs to establish her presence, build atmosphere, and set up the tarot reading that follows. It should feel like stepping into somewhere the detective's instincts tell him is *wrong* — but he can't leave.
+This is the first encounter with Madame Web — before the tarot prompt and before the reversed-code puzzle. It's only two lines and the order is wrong (she speaks before you enter). This page needs to establish her presence, build atmosphere, and set up the tarot reading that follows. It should feel like stepping into somewhere the detective's instincts tell them is *wrong* — but they can't leave.
 
 ### Proposed (new title: "The Mistress of Mysteries")
 > You push through a beaded curtain into a room that smells like a church and feels like a tomb. Incense, thick as fog, wraps around you before you've taken two steps.
@@ -205,7 +205,7 @@ This is reversed text — the code phrase `bew emadam` is `madame web` backwards
 > This is yours, you will need it for what is to come"
 
 ### Notes
-This reads like stage directions rather than dialogue. Madame Web should feel genuinely uncanny — the detective is a rationalist who's encountering something he can't explain and it unnerves him. She's not a con artist; she knows things she shouldn't. The detective's internal monologue should register that unease without fully processing it.
+This reads like stage directions rather than dialogue. Madame Web should feel genuinely uncanny — the detective is a rationalist encountering something they can't explain and it unnerves them. She's not a con artist; she knows things she shouldn't. The detective's internal monologue should register that unease without fully processing it.
 
 ### Proposed (new title: "The Woman Who Knows")
 > You don't tell her your name. She doesn't ask. She already knows it — you can see that in the way she looks at you. Not at your face. Through it.
@@ -298,7 +298,7 @@ This is the murder discovery — the biggest story beat in the investigator arc 
 > *Call his name*
 
 ### Notes
-This is a scan target — the player uses the crystal eye (UV light) on a physical element and scans it. The text should feel eerie and unsettling, filtered through a detective who is now seeing things he can't rationally explain. "Member of staff hums with the energy of a stranded soul" is too clinical. This is a moment of genuine supernatural horror for a character who doesn't believe in the supernatural.
+This is a scan target — the player uses the crystal eye (UV light) on a physical element and scans it. The text should feel eerie and unsettling, filtered through a detective who is now seeing things they can't rationally explain. "Member of staff hums with the energy of a stranded soul" is too clinical. This is a moment of genuine supernatural horror for a character who doesn't believe in the supernatural.
 
 ### Proposed (new title: "The Man Behind the Man")
 > The eye shows you something that shouldn't be there.

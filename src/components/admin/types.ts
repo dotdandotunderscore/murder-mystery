@@ -48,6 +48,7 @@ export interface Prompt {
   removes_words: string[] | null;
   success_text: string | null;
   wrong_answer_hints: Record<string, string> | null;
+  generic_wrong_text: string | null;
   allow_any_order: boolean;
   sort_order: number;
 }

@@ -16,6 +16,7 @@ export const defaultPromptForm = {
   removes_words: [] as string[],
   success_text: "",
   wrong_answer_hints: [] as { clue: string; hint: string }[],
+  generic_wrong_text: "",
   allow_any_order: false,
   sort_order: 0,
 };
@@ -50,6 +51,7 @@ export function PromptModal({ open, onClose, editing, presetPageId, pages, sugge
         removes_words: editing.removes_words ?? [],
         success_text: editing.success_text ?? "",
         wrong_answer_hints: wah,
+        generic_wrong_text: editing.generic_wrong_text ?? "",
         allow_any_order: editing.allow_any_order ?? false,
         sort_order: editing.sort_order,
       });
@@ -80,6 +82,7 @@ export function PromptModal({ open, onClose, editing, presetPageId, pages, sugge
       removes_words: toArr(form.removes_words as string[]),
       success_text: form.success_text.trim() || null,
       wrong_answer_hints,
+      generic_wrong_text: form.generic_wrong_text.trim() || null,
       allow_any_order: form.allow_any_order,
       sort_order: form.sort_order,
     };
@@ -150,6 +153,15 @@ export function PromptModal({ open, onClose, editing, presetPageId, pages, sugge
             rows={form.wrong_answer_hints as { clue: string; hint: string }[]}
             onChange={(v) => set("wrong_answer_hints", v)}
             wordSuggestions={suggestions.words}
+          />
+        </Field>
+        <Field label="Generic Wrong Answer Text" hint="Optional — shown on any incorrect answer, regardless of what was entered">
+          <textarea
+            className={`${inputCls} resize-none`}
+            rows={2}
+            value={form.generic_wrong_text}
+            onChange={(e) => set("generic_wrong_text", e.target.value)}
+            placeholder="Think about where the suspect was last seen…"
           />
         </Field>
         <Field label="Success Text" hint="Optional — shown after a correct answer. Use [[code-phrase]] for clickable links.">

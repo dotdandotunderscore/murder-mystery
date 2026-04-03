@@ -41,13 +41,15 @@ export default function PromptBlock({
   const [completed, setCompleted] = useState(prompt.completed);
   const [wrong, setWrong] = useState(false);
   const [wrongHints, setWrongHints] = useState<string[]>([]);
+  const [genericWrongText, setGenericWrongText] = useState<string | null>(null);
   const [reward, setReward] = useState<{ flags?: string[]; words?: string[]; successText?: string } | null>(null);
 
   // Clear wrong feedback when the player changes their answer
   useEffect(() => {
-    if (wrong || wrongHints.length > 0) {
+    if (wrong || wrongHints.length > 0 || genericWrongText) {
       setWrong(false);
       setWrongHints([]);
+      setGenericWrongText(null);
     }
   }, [placements]);
 
@@ -60,6 +62,7 @@ export default function PromptBlock({
     setSubmitting(true);
     setWrong(false);
     setWrongHints([]);
+    setGenericWrongText(null);
     try {
       const res = await fetch(`/api/prompts/${prompt.id}/submit`, {
         method: "POST",
@@ -75,6 +78,7 @@ export default function PromptBlock({
       } else {
         setWrong(true);
         if (data.hints?.length) setWrongHints(data.hints);
+        if (data.generic_wrong_text) setGenericWrongText(data.generic_wrong_text);
       }
     } catch {
       setWrong(true);
@@ -206,11 +210,14 @@ export default function PromptBlock({
           </span>
         )}
       </div>
-      {wrongHints.length > 0 && (
+      {(wrongHints.length > 0 || genericWrongText) && (
         <div className="mt-3 space-y-1">
           {wrongHints.map((hint, i) => (
             <p key={i} className="text-muted text-xs italic"><RichText text={hint} /></p>
           ))}
+          {genericWrongText && (
+            <p className="text-muted text-xs italic"><RichText text={genericWrongText} /></p>
+          )}
         </div>
       )}
     </div>

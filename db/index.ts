@@ -106,6 +106,7 @@ export interface Prompt {
   removes_words: string[] | null;
   success_text: string | null;
   wrong_answer_hints: Record<string, string> | null;
+  generic_wrong_text: string | null;
   allow_any_order: boolean;
   sort_order: number;
   created_at: Date;
@@ -221,6 +222,7 @@ export async function initializeDatabase() {
   await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS removes_words TEXT[]`;
   await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS wrong_answer_hints JSONB`;
   await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS allow_any_order BOOLEAN DEFAULT false`;
+  await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS generic_wrong_text TEXT`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS player_prompt_completions (
@@ -764,11 +766,12 @@ export async function createPrompt(data: {
   removes_words?: string[] | null;
   success_text?: string | null;
   wrong_answer_hints?: Record<string, string> | null;
+  generic_wrong_text?: string | null;
   allow_any_order?: boolean;
   sort_order?: number;
 }): Promise<Prompt> {
   const [prompt] = await sql`
-    INSERT INTO prompts (page_id, question, template, answer, grants_flags, grants_words, removes_flags, removes_words, success_text, wrong_answer_hints, allow_any_order, sort_order)
+    INSERT INTO prompts (page_id, question, template, answer, grants_flags, grants_words, removes_flags, removes_words, success_text, wrong_answer_hints, generic_wrong_text, allow_any_order, sort_order)
     VALUES (
       ${data.page_id},
       ${data.question},
@@ -780,6 +783,7 @@ export async function createPrompt(data: {
       ${pgTextArray(normalizeUpper(data.removes_words))},
       ${data.success_text ?? null},
       ${normalizeWrongAnswerHints(data.wrong_answer_hints)},
+      ${data.generic_wrong_text ?? null},
       ${data.allow_any_order ?? false},
       ${data.sort_order ?? 0}
     )
@@ -801,6 +805,7 @@ export async function updatePrompt(
     removes_words?: string[] | null;
     success_text?: string | null;
     wrong_answer_hints?: Record<string, string> | null;
+    generic_wrong_text?: string | null;
     allow_any_order?: boolean;
     sort_order?: number;
   }
@@ -817,6 +822,7 @@ export async function updatePrompt(
       removes_words = ${pgTextArray(normalizeUpper(data.removes_words))},
       success_text = ${data.success_text ?? null},
       wrong_answer_hints = ${normalizeWrongAnswerHints(data.wrong_answer_hints)},
+      generic_wrong_text = ${data.generic_wrong_text ?? null},
       allow_any_order = ${data.allow_any_order ?? false},
       sort_order = ${data.sort_order ?? 0}
     WHERE id = ${id}
@@ -1005,7 +1011,7 @@ export async function submitPromptAnswer(
         if (hint) hints.push(hint);
       }
     }
-    return { correct: false, ...(hints.length > 0 ? { hints } : {}) };
+    return { correct: false, ...(hints.length > 0 ? { hints } : {}), ...(prompt.generic_wrong_text ? { generic_wrong_text: prompt.generic_wrong_text } : {}) };
   }
 
   const submittedUpper = words.map((w) => w.trim().toUpperCase());
