@@ -84,7 +84,7 @@ export default function RichText({ text, highlights = [], onCode }: Props) {
     nodes.push(
       <button
         key={match.index}
-        onClick={() => onCode?.(phrase)}
+        onClick={() => onCode?.(phrase.toLowerCase())}
         disabled={!onCode}
         className="underline decoration-dotted underline-offset-2 text-gold hover:text-gold-light transition-colors disabled:cursor-default"
       >
