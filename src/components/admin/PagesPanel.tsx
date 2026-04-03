@@ -913,11 +913,17 @@ export function PagesPanel() {
           </Field>
           <Field label="Content" hint="Use [[code-phrase]] to insert a clickable link to another page">
             <textarea
-              className={`${inputCls} resize-none`}
+              className={`${inputCls} resize-none md:overflow-hidden`}
               rows={5}
               value={form.content}
               onChange={(e) => setF("content", e.target.value)}
               placeholder="Page text…"
+              ref={(el) => {
+                if (el) {
+                  el.style.height = "auto";
+                  el.style.height = Math.max(el.scrollHeight, 120) + "px";
+                }
+              }}
             />
           </Field>
           <Field label="Type">

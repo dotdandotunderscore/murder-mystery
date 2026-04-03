@@ -189,24 +189,8 @@ This is reversed text — the code phrase `bew emadam` is `madame web` backwards
 > *"Sit."*
 >
 > You sit. You didn't choose to.
->
-> She places a single card face-down on the table between you. When you reach for it, she shakes her head.
->
-> *"Not here. Go back. The way you came. She is waiting for you on the other side."*
->
-> She means herself. The other her. The right-way-round her. You don't understand that and you don't want to.
->
-> Find [[Madame Web]].
 
 *(Reversed for the actual page content:)*
-> .]]beW emadaM[[ dniF
->
-> .ot tnaw t'nod uoy dna taht dnatsrednu t'nod uoY .reh dnuor-eht-yaw-thgir ehT .reh rehto ehT .flesreh snaem ehS
->
-> *".edis rehto eht no uoy rof gnitiaw si ehS .emac uoy yaw ehT .kcab oG .ereh toN"*
->
-> .daeh reh sekahs ehs ,ti rof hcaer uoy nehW .uoy neewteb elbat eht no nwod-ecaf drac elgnis a secalp ehS
->
 > .ot esoohc t'ndid uoY .tis uoY
 >
 > ".tiS"
@@ -218,6 +202,8 @@ This is reversed text — the code phrase `bew emadam` is `madame web` backwards
 > .ot ton uoy sllet gnihtemoS .yltcerid ti ta kool t'nod uoY .segde ynam oot sah tI .epahs reh hctam t'nseod tI .gnorw si wodahs reh tuB .erofeb saw ehs erehw gnittis si beW emadaM
 >
 > .knalb si meht fo eno elgnis yreve dna pu ecaf era elbat eht no sdrac ehT .sesir fo daetsni sknis ekoms esnecni ehT .roolf eht ta tniop semalf eht tub drawngod nrub seldnac ehT .emas eht ton si tI .emas eht si moor ehT
+
+**Prompt success text (new):** *"She places a single card face-down on the table. You reach for it. She shakes her head. 'Not here. Go back. The way you came. She is waiting for you on the other side.' She means herself. The other her. The right-way-round her. Find [[Madame Web]]."*
 
 ---
 
