@@ -131,11 +131,11 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 >
 > Sage's last night, written in a dead man's hand.
 >
-> He came back to the Broken Drum with the torn page from the ledger tucked inside his jacket. Thought he was holding a winning hand — show the authorities what he'd found, or the casino pays for his silence. A simple transaction.
+> He came back to the Broken Drum with a torn page from a ledger tucked inside his jacket. Thought he was holding a winning hand — show the authorities what he'd found, or the casino pays for his silence. A simple transaction.
 >
 > He didn't understand what kind of establishment he was trying to rob. You don't blackmail people who solve problems by making people disappear. You especially don't do it in their own building, in their own room, on their own terms.
 >
-> He sat across from the Viper in the Green Room. Showed him the evidence. The Viper smiled.
+> He sat across from someone in the Green Room. Showed them the evidence. They smiled.
 >
 > Sage didn't leave that room alive.
 >
@@ -153,8 +153,8 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 **Code phrase:** `the vipers nest`
 **Code phrase source:** UV ink in a hard-to-find spot — ceiling, inside a drawer, under furniture
 
-**Required flags:** `the pale flame`, `found the viper`, `sage spoke`
-**Required flags hints:** `"You see something strange, but you can't make it out."`, `"You don't know what you're looking at yet."`, `"You don't know what this might mean yet."`
+**Required flags:** `the pale flame`, `found the viper`
+**Required flags hints:** `"You see something strange, but you can't make it out."`, `"You don't know what you're looking at yet."`
 
 **Grants flags:** `knows the truth`
 **Grants clues:** HIT LIST
@@ -167,11 +167,9 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 >
 > Mr. Sage is the seventh name on the list. The eighth is someone you don't recognise. The space below the eighth is empty and waiting.
 >
-> Vincent Vane doesn't just run rigged card games. He's the casino's fixer. When someone sees too much, knows too much, threatens the wrong people — the Viper handles it. The mob points, and the Viper bites. Quietly, efficiently, and in rooms that get cleaned before dawn.
+> Vincent Vane. So that's the Viper's real name. And this isn't just a list — it's a trophy case. A record kept by a man who wanted to remember what he'd done. Or a man who was keeping score.
 >
-> You have the full picture now. The motive: Sage found the ledger. The killer: Vincent Vane, the Viper. The method: a private meeting in the Green Room that was never meant to end with both men walking out.
->
-> But knowing isn't proving. You need evidence. A name. A weapon. A book of sins. You don't have them — but someone in this casino does. Time to start trading favours.
+> You need evidence. A name others will recognise. A weapon. A motive someone can't deny. You don't have them — but someone in this casino does. Time to start trading favours.
 
 **Prompt:** None
 **Text links:** None
@@ -183,8 +181,8 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 **Code phrase:** `blood money`
 **Code phrase source:** UV ink on a wall, behind a picture frame
 
-**Required flags:** `the pale flame`
-**Required flags hints:** `"You see something strange, but you can't make it out."`
+**Required flags:** `the pale flame`, `sage spoke`
+**Required flags hints:** `"You see something strange, but you can't make it out."`, `"You don't know what this might mean yet."`
 
 **Grants flags:** `followed the money`
 **Grants clues:** BLOOD MONEY
@@ -199,7 +197,7 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 >
 > He took a page. One page from the real ledger. That was all it took. One page, and a man who thought proof was the same thing as power.
 >
-> The money flows through this place like blood through a body. Dirty in, clean out. And anyone who notices the stain ends up on the Viper's list.
+> The money flows through this place like blood through a body. Dirty in, clean out. And anyone who notices the stain doesn't leave the same way they came in.
 
 **Prompt:** None
 **Text links:** None
@@ -211,8 +209,8 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 **Code phrase:** `lucky streak`
 **Code phrase source:** UV ink near a slot machine or roulette wheel
 
-**Required flags:** `the pale flame`
-**Required flags hints:** `"You see something strange, but you can't make it out."`
+**Required flags:** `the pale flame`, `sage spoke`
+**Required flags hints:** `"You see something strange, but you can't make it out."`, `"You don't know what this might mean yet."`
 
 **Grants flags:** (none)
 **Grants clues:** (none)
@@ -239,8 +237,8 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 **Code phrase:** `house rules`
 **Code phrase source:** UV ink on a notice board or near a staff door
 
-**Required flags:** `the pale flame`
-**Required flags hints:** `"You see something strange, but you can't make it out."`
+**Required flags:** `the pale flame`, `sage spoke`
+**Required flags hints:** `"You see something strange, but you can't make it out."`, `"You don't know what this might mean yet."`
 
 **Grants flags:** (none)
 **Grants clues:** (none)
@@ -265,8 +263,8 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 **Code phrase:** `cold deck`
 **Code phrase source:** UV ink on the underside of a chair or table
 
-**Required flags:** `the pale flame`
-**Required flags hints:** `"You see something strange, but you can't make it out."`
+**Required flags:** `the pale flame`, `sage spoke`
+**Required flags hints:** `"You see something strange, but you can't make it out."`, `"You don't know what this might mean yet."`
 
 **Grants flags:** (none)
 **Grants clues:** (none)
@@ -291,8 +289,8 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 **Code phrase:** `high roller`
 **Code phrase source:** UV ink near a velvet rope or VIP area
 
-**Required flags:** `the pale flame`
-**Required flags hints:** `"You see something strange, but you can't make it out."`
+**Required flags:** `the pale flame`, `sage spoke`
+**Required flags hints:** `"You see something strange, but you can't make it out."`, `"You don't know what this might mean yet."`
 
 **Grants flags:** (none)
 **Grants clues:** (none)
@@ -317,8 +315,8 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 **Code phrase:** `after hours`
 **Code phrase source:** UV ink near a clock or staff area
 
-**Required flags:** `the pale flame`
-**Required flags hints:** `"You see something strange, but you can't make it out."`
+**Required flags:** `the pale flame`, `sage spoke`
+**Required flags hints:** `"You see something strange, but you can't make it out."`, `"You don't know what this might mean yet."`
 
 **Grants flags:** (none)
 **Grants clues:** (none)
@@ -399,15 +397,15 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 | Page | Code Phrase | Title | Flags Required | Flags Granted | Clues Granted | Type |
 |---|---|---|---|---|---|---|
 | 42 | `the hunt begins` | The Hunt Begins | `found the shell of mr. sage`, `the pale flame` | `sage spoke` | TORN PAGE | Gateway |
-| 43 | `snake eyes` | The Viper's Table | `the pale flame` | `found the viper` | MARKED CARDS | UV (real) |
-| 44 | `last orders` | The Barkeep's Burden | `the pale flame` | `heard the barkeep` | BARKEEP'S NOTE | UV (real) |
-| 45 | `no witnesses` | Clean Up | `the pale flame` | `saw the cleanup` | CLEANING ROTA | UV (real) |
-| 46 | `dead mans hand` | The Last Hand | `the pale flame` | `saw the last hand` | GREEN ROOM | UV (real) |
+| 43 | `snake eyes` | The Viper's Table | `the pale flame`, `sage spoke` | `found the viper` | MARKED CARDS | UV (real) |
+| 44 | `last orders` | The Barkeep's Burden | `the pale flame`, `sage spoke` | `heard the barkeep` | BARKEEP'S NOTE | UV (real) |
+| 45 | `no witnesses` | Clean Up | `the pale flame`, `sage spoke` | `saw the cleanup` | CLEANING ROTA | UV (real) |
+| 46 | `dead mans hand` | The Last Hand | `the pale flame`, `sage spoke` | `saw the last hand` | GREEN ROOM | UV (real) |
 | 47 | `the vipers nest` | The Viper's Nest | `the pale flame`, `found the viper` | `knows the truth` | HIT LIST | UV (real) |
-| 48 | `blood money` | Follow the Money | `the pale flame` | `followed the money` | BLOOD MONEY | UV (real) |
-| 50 | `lucky streak` | The Winning Streak | `the pale flame` | — | — | UV (herring) |
-| 51 | `house rules` | House Rules | `the pale flame` | — | — | UV (herring) |
-| 53 | `cold deck` | A Cold Trail | `the pale flame` | — | — | UV (herring) |
-| 54 | `high roller` | The VIP List | `the pale flame` | — | — | UV (herring) |
-| 55 | `after hours` | Night Shift | `the pale flame` | — | — | UV (herring) |
+| 48 | `blood money` | Follow the Money | `the pale flame`, `sage spoke` | `followed the money` | BLOOD MONEY | UV (real) |
+| 50 | `lucky streak` | The Winning Streak | `the pale flame`, `sage spoke` | — | — | UV (herring) |
+| 51 | `house rules` | House Rules | `the pale flame`, `sage spoke` | — | — | UV (herring) |
+| 53 | `cold deck` | A Cold Trail | `the pale flame`, `sage spoke` | — | — | UV (herring) |
+| 54 | `high roller` | The VIP List | `the pale flame`, `sage spoke` | — | — | UV (herring) |
+| 55 | `after hours` | Night Shift | `the pale flame`, `sage spoke` | — | — | UV (herring) |
 | 52 | `accusation` | The Case of Mr. Sage | `sage spoke`, `knows the truth` | `case closed` | — | Accusation |
