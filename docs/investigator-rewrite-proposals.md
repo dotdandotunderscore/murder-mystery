@@ -178,20 +178,46 @@ This is the first encounter with Madame Web — before the tarot prompt and befo
 This is reversed text — the code phrase `bew emadam` is `madame web` backwards. Players first find a normal "madame web" page (page 38), then encounter a tarot prompt where the correct answer is "The Moon." Madame Web responds that the Moon card is wrong — hinting that they need to *invert* the reading, which in tarot means reversing the card. This clues the player to reverse the code phrase, leading here. Clever puzzle. The reversed text is part of the mechanic so it stays reversed, but the underlying prose needs the noir treatment.
 
 ### Proposed (underlying text)
-> You step into Madame Web's parlour. The incense hits you before anything else — thick, sweet, ancient. It curls through the air like it has nowhere better to be. The room is small and dark and full of things you don't want to look at twice.
+> The room is the same. It is not the same. The candles burn downward but the flames point at the floor. The incense smoke sinks instead of rises. The cards on the table are face up and every single one of them is blank.
 >
-> She's sitting behind a table covered in cards and candle wax. You've seen a lot of things in this city that don't make sense. This woman is about to add to the list. You can feel it in the way the air sits heavy, the way the shadows don't move right.
+> Madame Web is sitting where she was before. But her shadow is wrong. It doesn't match her shape. It has too many edges. You don't look at it directly. Something tells you not to.
 >
-> When she speaks, her voice sounds like it's coming from somewhere deeper than her throat.
+> The air tastes like copper and old churches. Your skin prickles. Every hair on your arms is standing and you don't remember the last time you were afraid like this. You're not sure you've ever been afraid like this.
+>
+> When she speaks, her lips don't move.
 >
 > *"Sit."*
+>
+> You sit. You didn't choose to.
+>
+> She places a single card face-down on the table between you. When you reach for it, she shakes her head.
+>
+> *"Not here. Go back. The way you came. She is waiting for you on the other side."*
+>
+> She means herself. The other her. The right-way-round her. You don't understand that and you don't want to.
+>
+> Find [[Madame Web]].
 
 *(Reversed for the actual page content:)*
+> .]]beW emadaM[[ dniF
+>
+> .ot tnaw t'nod uoy dna taht dnatsrednu t'nod uoY .reh dnuor-eht-yaw-thgir ehT .reh rehto ehT .flesreh snaem ehS
+>
+> *".edis rehto eht no uoy rof gnitiaw si ehS .emac uoy yaw ehT .kcab oG .ereh toN"*
+>
+> .daeh reh sekahs ehs ,ti rof hcaer uoy nehW .uoy neewteb elbat eht no nwod-ecaf drac elgnis a secalp ehS
+>
+> .ot esoohc t'ndid uoY .tis uoY
+>
 > ".tiS"
 >
-> .taorht reh naht repeed erehwemos morf gnimoc s'ti ekil sdnuos eciov reh ,skaeps ehs nehW .thgir evom t'nod swodahs eht yaw eht ,yvaeh stis ria eht yaw eht ni ti leef nac uoY .tsil eht ot dda ot tuoba si namow sihT .esnes ekam t'nod taht ytic siht ni sgniht fo tol a nees ev'uoY .eciwtekool t'tnaw uoy od sgniht fo lluf dna krad dna llams si moor ehT .xaw eldnac dna sdrac ni derevoc elbat a dniheb gnittis s'ehS
+> .evom t'nod spil reh ,skaeps ehs nehW
 >
-> .eb ot retteb erehwon sah ti ekil ria eht hguorht slruc tI .tneicna ,teews ,kciht — esle gnihtyna erofeb uoy stih esnecni ehT .ruolrap s'beW emadaM otni pets uoY
+> .siht ekil diarfa neeb reve ev'uoy erus ton er'uoY .siht ekil diarfa erew uoy emit tsal eht rebmemer t'nod uoy dna gnidnats si smra ruoy no riah yrevE .selkcirp niks ruoY .sehcruhc dlo dna reppoc ekil setsat ria ehT
+>
+> .ot ton uoy sllet gnihtemoS .yltcerid ti ta kool t'nod uoY .segde ynam oot sah tI .epahs reh hctam t'nseod tI .gnorw si wodahs reh tuB .erofeb saw ehs erehw gnittis si beW emadaM
+>
+> .knalb si meht fo eno elgnis yreve dna pu ecaf era elbat eht no sdrac ehT .sesir fo daetsni sknis ekoms esnecni ehT .roolf eht ta tniop semalf eht tub drawngod nrub seldnac ehT .emas eht ton si tI .emas eht si moor ehT
 
 ---
 
@@ -218,9 +244,7 @@ This reads like stage directions rather than dialogue. Madame Web should feel ge
 >
 > *"He came to me seeking answers. The cards showed him something he was not prepared for. You will find what remains of his evening in the [[Green Room]]."*
 >
-> She presses something into your hand. It's cold. Colder than it should be.
->
-> *"Take this. The night has plans for you, detective. Whether you like them or not."*
+> That's all she gives you. No explanation, no directions, no small talk. The conversation is over because she says it is.
 >
 > You want to argue. You want to tell her you don't believe in any of this. But your mouth stays shut. Some part of you — the old part, the part that still trusts its instincts — knows better.
 
@@ -260,12 +284,12 @@ This is the murder discovery — the biggest story beat in the investigator arc 
 ### Current
 > "No, My friend, you found the shell that Mr. Sage once inhabited, but you have not found the man.
 >
-> Now is the time to peer through the [[crystal eye]].
+> Now is the time to peer through the [[pale flame]].
 >
 > Peer upon the proprietors of this establishment through the eye. Through it the threads of fate may unravel."
 
 ### Notes
-"The shell that Mr. Sage once inhabited" — this is the big reveal that Sage is dead, but it lands softly because the language is too detached and mystical. This is a murder mystery moment and it should hit hard. "Threads of fate may unravel" is fantasy-speak. The noir detective would have a visceral reaction. This is also where the UV light pen (the "crystal eye") gets introduced as the investigator's unique midgame tool — it needs to set that up as something powerful and strange that changes how they see the world.
+"The shell that Mr. Sage once inhabited" — this is the big reveal that Sage is dead, but it lands softly because the language is too detached and mystical. This is a murder mystery moment and it should hit hard. "Threads of fate may unravel" is fantasy-speak. The noir detective would have a visceral reaction. This is also where the UV light pen (the "pale flame") gets introduced as the investigator's unique midgame tool — it needs to set that up as something powerful and strange that changes how they see the world.
 
 ### Proposed (new title: "Dead End")
 > You tell her what you found in the Green Room. She doesn't flinch. Not even a little. She knew before you walked back in.
@@ -274,21 +298,23 @@ This is the murder discovery — the biggest story beat in the investigator arc 
 >
 > The room feels smaller than it did a minute ago. You came here tonight to catch a man with his hand in the wrong cookie jar. Now the man is dead and you're taking counsel from a woman whose candles burn without wax melting.
 >
-> She slides something across the table. The [[crystal eye]].
+> She reaches beneath the table and places something in front of you. A light — small, strange, old. It doesn't look like much. But then, neither did Madame Web the first time you saw her.
 >
-> *"Look through this at the ones who own these walls. The living hide their sins behind smiles and silk. But the eye sees what the eye sees."*
+> *"The [[pale flame]]. It will show you what the guilty have tried to hide. Their words, their marks, their secrets — written in ink that only this light can reveal."*
 >
 > She means the mob. The people who run the Broken Drum. The people with every reason in the world to make a man disappear.
 >
-> You pick up the eye. It's heavier than it looks. Through it, the room looks... different. Symbols on the walls you didn't notice before. Marks. Messages. Like someone wrote the truth in ink that only the desperate can read.
+> *"Shine it where you would not think to look. The truth is written on the walls of this place, detective. But only for those willing to see it."*
 >
-> Wonderful. A missing person case just became a murder investigation, and your only lead is a magic lens given to you by a woman who reads tarot cards in a basement.
+> You pick it up. Click it on. A thin violet beam cuts through the incense smoke. Even here, in her parlour, you can see marks on the wall you'd never have noticed. Words. Hidden in plain sight.
+>
+> Wonderful. A missing person case just became a murder investigation, and your only lead is a magic torch given to you by a woman who reads tarot cards in a basement.
 >
 > Your mother always said you should have been a dentist.
 
 ---
 
-## Page 41 — "This must be the place" (code: `mr. sage's ghost`, type: `scan_target`)
+## Page 41 — "This must be the place" (code: `mr. sage's ghost`)
 
 ### Current
 > *The silhouette of this member of staff hums with the energy of a stranded soul.*
@@ -298,12 +324,12 @@ This is the murder discovery — the biggest story beat in the investigator arc 
 > *Call his name*
 
 ### Notes
-This is a scan target — the player uses the crystal eye (UV light) on a physical element and scans it. The text should feel eerie and unsettling, filtered through a detective who is now seeing things they can't rationally explain. "Member of staff hums with the energy of a stranded soul" is too clinical. This is a moment of genuine supernatural horror for a character who doesn't believe in the supernatural.
+Previously a scan target, but now the UV system works via code phrases written in UV ink around the room — players find hidden text with the torch and type it in. This page is what they reach when they find and enter the right phrase. The text should feel eerie and unsettling, filtered through a detective who is now seeing things they can't rationally explain. "Member of staff hums with the energy of a stranded soul" is too clinical. Page type should change from `scan_target` to `text`.
 
 ### Proposed (new title: "The Man Behind the Man")
-> The eye shows you something that shouldn't be there.
+> The flame shows you something that shouldn't be there.
 >
-> This person — just staff, just another face in the crowd — but through the lens they shimmer. A second shape layered over the first, like a double exposure on a photograph. The outline of a man who isn't there anymore. A man you found face-down on a rug twenty minutes ago.
+> This person — just staff, just another face in the crowd — but through the light they shimmer. A second shape layered over the first, like a double exposure on a photograph. The outline of someone who isn't there anymore. Someone you found face-down on a rug twenty minutes ago.
 >
 > Sage. Or what's left of him. Trapped. Tethered. However you want to say it — none of the words feel right because none of the words were built for this.
 >
