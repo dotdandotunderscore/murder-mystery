@@ -34,7 +34,6 @@ export const defaultPageForm = {
   content: "",
   page_type: "text",
   visible_to_roles: [] as string[],
-  visible_to_players: [] as string[],
   required_flags: [] as string[],
   required_flags_hints: [] as string[],
   grants_flags: [] as string[],
@@ -118,11 +117,6 @@ export function PagesPanel() {
 
   useEffect(() => { load(); }, []);
 
-  const playerName = (id: number) =>
-    suggestions.players.find((p) => p.id === id)?.name ?? String(id);
-  const playerId = (name: string) =>
-    suggestions.players.find((p) => p.name === name)?.id ?? Number(name);
-
   // ── Page CRUD ──────────────────────────────────────────────────────────────
 
   const openCreate = () => {
@@ -139,9 +133,6 @@ export function PagesPanel() {
       content: c.content,
       page_type: c.page_type,
       visible_to_roles: c.visible_to_roles ?? [],
-      visible_to_players: Array.isArray(c.visible_to_players)
-        ? c.visible_to_players.map(playerName)
-        : [],
       required_flags: c.required_flags ?? [],
       required_flags_hints: c.required_flags_hints ?? [],
       grants_flags: c.grants_flags ?? [],
@@ -174,7 +165,6 @@ export function PagesPanel() {
       content: form.content,
       page_type: form.page_type,
       visible_to_roles: toArr(form.visible_to_roles),
-      visible_to_players: toArr(form.visible_to_players)?.map(playerId) ?? null,
       required_flags,
       required_flags_hints,
       grants_flags: toArr(form.grants_flags),
@@ -1025,14 +1015,6 @@ export function PagesPanel() {
               onChange={(v) => setF("visible_to_roles", v)}
               placeholder="e.g. investigator"
               suggestions={suggestions.roles}
-            />
-          </Field>
-          <Field label="Visible to Players" hint="Blank = all players">
-            <TagInput
-              values={form.visible_to_players}
-              onChange={(v) => setF("visible_to_players", v)}
-              placeholder="Player name"
-              suggestions={suggestions.players.map((p) => p.name)}
             />
           </Field>
           <Field label="Required Flags" hint="Player must have all of these to unlock — hint text supports [[code-phrase]] links">

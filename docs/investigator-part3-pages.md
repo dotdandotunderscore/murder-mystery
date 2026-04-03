@@ -35,8 +35,8 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 **Code phrase:** `snake eyes`
 **Code phrase source:** UV ink on/under a playing card or card table
 
-**Required flags:** `the pale flame`
-**Required flags hints:** `"You see something strange, but you can't make it out."`
+**Required flags:** `the pale flame`, `sage spoke`
+**Required flags hints:** `"You see something strange, but you can't make it out."`, `"You don't know what this might mean yet."`
 
 **Grants flags:** `found the viper`
 **Grants clues:** MARKED CARDS
@@ -63,8 +63,8 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 **Code phrase:** `last orders`
 **Code phrase source:** UV ink on or near the bar / drinks menu
 
-**Required flags:** `the pale flame`
-**Required flags hints:** `"You see something strange, but you can't make it out."`
+**Required flags:** `the pale flame`, `sage spoke`
+**Required flags hints:** `"You see something strange, but you can't make it out."`, `"You don't know what this might mean yet."`
 
 **Grants flags:** `heard the barkeep`
 **Grants clues:** BARKEEP'S NOTE
@@ -91,8 +91,8 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 **Code phrase:** `no witnesses`
 **Code phrase source:** UV ink near a doorway or exit sign
 
-**Required flags:** `the pale flame`
-**Required flags hints:** `"You see something strange, but you can't make it out."`
+**Required flags:** `the pale flame`, `sage spoke`
+**Required flags hints:** `"You see something strange, but you can't make it out."`, `"You don't know what this might mean yet."`
 
 **Grants flags:** `saw the cleanup`
 **Grants clues:** CLEANING ROTA
@@ -119,8 +119,8 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 **Code phrase:** `dead mans hand`
 **Code phrase source:** UV ink on a mirror or reflective surface
 
-**Required flags:** `the pale flame`
-**Required flags hints:** `"You see something strange, but you can't make it out."`
+**Required flags:** `the pale flame`, `sage spoke`
+**Required flags hints:** `"You see something strange, but you can't make it out."`, `"You don't know what this might mean yet."`
 
 **Grants flags:** `saw the last hand`
 **Grants clues:** GREEN ROOM
@@ -153,8 +153,8 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 **Code phrase:** `the vipers nest`
 **Code phrase source:** UV ink in a hard-to-find spot — ceiling, inside a drawer, under furniture
 
-**Required flags:** `the pale flame`, `found the viper`
-**Required flags hints:** `"You see something strange, but you can't make it out."`, `"You don't know what you're looking at yet."`
+**Required flags:** `the pale flame`, `found the viper`, `sage spoke`
+**Required flags hints:** `"You see something strange, but you can't make it out."`, `"You don't know what you're looking at yet."`, `"You don't know what this might mean yet."`
 
 **Grants flags:** `knows the truth`
 **Grants clues:** HIT LIST

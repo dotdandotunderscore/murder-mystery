@@ -66,7 +66,6 @@ export interface Page {
   content: string;
   page_type: string;
   visible_to_roles: string[] | null;
-  visible_to_players: number[] | null;
   required_flags: string[] | null;
   required_flags_hints: string[] | null;
   grants_flags: string[] | null;
@@ -162,7 +161,6 @@ export async function initializeDatabase() {
       content TEXT DEFAULT '',
       page_type TEXT DEFAULT 'text',
       visible_to_roles TEXT[],
-      visible_to_players INT[],
       required_flags TEXT[],
       grants_flags TEXT[],
       sort_order INT DEFAULT 0,
@@ -263,6 +261,9 @@ export async function initializeDatabase() {
 
   // Rename visible_to_teams→visible_to_roles on pages (idempotent)
   try { await sql`ALTER TABLE pages RENAME COLUMN visible_to_teams TO visible_to_roles`; } catch {}
+
+  // Drop deprecated visible_to_players column
+  await sql`ALTER TABLE pages DROP COLUMN IF EXISTS visible_to_players`;
 
   // Seed initial admin if none exists
   const adminCount = await sql`SELECT COUNT(*) as count FROM players WHERE is_admin = true`;
@@ -409,34 +410,25 @@ export async function getPageByCodeForPlayer(
     return qualified.reduce((a, b) => (b.sort_order >= a.sort_order ? b : a));
   };
 
-  // Priority 1: explicitly listed for this player
-  const playerSpecific = rows.filter(
-    (p) => p.visible_to_players && p.visible_to_players.includes(playerId)
-  );
-  const p1 = bestIn(playerSpecific);
-  if (p1) return { page: p1 };
-
-  // Priority 2: listed for this player's role (and not player-restricted)
+  // Priority 1: listed for this player's role
   const roleSpecific = rows.filter(
     (p) =>
-      !p.visible_to_players &&
       role &&
       p.visible_to_roles &&
       p.visible_to_roles.map((r) => r.toLowerCase()).includes(role)
   );
-  const p2 = bestIn(roleSpecific);
-  if (p2) return { page: p2 };
+  const p1 = bestIn(roleSpecific);
+  if (p1) return { page: p1 };
 
-  // Priority 3: open to all (no restrictions)
-  const open = rows.filter((p) => !p.visible_to_players && !p.visible_to_roles);
-  const p3 = bestIn(open);
-  if (p3) return { page: p3 };
+  // Priority 2: open to all (no restrictions)
+  const open = rows.filter((p) => !p.visible_to_roles);
+  const p2 = bestIn(open);
+  if (p2) return { page: p2 };
 
   // No qualifying page found — return the visible-but-blocked page with the
   // lowest sort_order (highest in the admin list, i.e. the next one they need to unlock)
   // so the caller can show its required_flags_hints.
   const visiblePages = [
-    ...playerSpecific,
     ...roleSpecific,
     ...open,
   ];
@@ -454,7 +446,6 @@ export async function createPage(data: {
   content?: string;
   page_type?: string;
   visible_to_roles?: string[] | null;
-  visible_to_players?: number[] | null;
   required_flags?: string[] | null;
   required_flags_hints?: string[] | null;
   grants_flags?: string[] | null;
@@ -476,7 +467,7 @@ export async function createPage(data: {
   const [page] = await sql`
     INSERT INTO pages (
       code_phrase, title, content, page_type,
-      visible_to_roles, visible_to_players,
+      visible_to_roles,
       required_flags, required_flags_hints,
       grants_flags, grants_words,
       removes_flags, removes_words, game_config, scan_code, sort_order, folder_id
@@ -487,7 +478,6 @@ export async function createPage(data: {
       ${data.content ?? ""},
       ${pageType},
       ${pgTextArray(normalizeLower(data.visible_to_roles))},
-      ${pgIntArray(data.visible_to_players)},
       ${pgTextArray(normalizeLower(data.required_flags))},
       ${pgTextArray(normalizeHints(data.required_flags_hints))},
       ${pgTextArray(normalizeLower(data.grants_flags))},
@@ -512,7 +502,6 @@ export async function updatePage(
     content?: string;
     page_type?: string;
     visible_to_roles?: string[] | null;
-    visible_to_players?: number[] | null;
     required_flags?: string[] | null;
     required_flags_hints?: string[] | null;
     grants_flags?: string[] | null;
@@ -537,7 +526,6 @@ export async function updatePage(
       content = ${data.content ?? ""},
       page_type = ${pageType},
       visible_to_roles = ${pgTextArray(normalizeLower(data.visible_to_roles))},
-      visible_to_players = ${pgIntArray(data.visible_to_players)},
       required_flags = ${pgTextArray(normalizeLower(data.required_flags))},
       required_flags_hints = ${pgTextArray(normalizeHints(data.required_flags_hints))},
       grants_flags = ${pgTextArray(normalizeLower(data.grants_flags))},

@@ -142,7 +142,7 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
     await removePlayerWordsByText(player.id, page.removes_words);
   }
 
-  const { visible_to_roles, visible_to_players, required_flags, removes_flags, removes_words, scan_code, ...pageData } = page;
+  const { visible_to_roles, required_flags, removes_flags, removes_words, scan_code, ...pageData } = page;
   return json(pageData);
 }
 

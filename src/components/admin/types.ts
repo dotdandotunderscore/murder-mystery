@@ -23,7 +23,6 @@ export interface Page {
   content: string;
   page_type: string;
   visible_to_roles: string[] | null;
-  visible_to_players: number[] | null;
   required_flags: string[] | null;
   required_flags_hints: string[] | null;
   grants_flags: string[] | null;
