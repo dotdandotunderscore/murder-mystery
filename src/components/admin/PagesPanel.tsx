@@ -139,7 +139,9 @@ export function PagesPanel() {
       content: c.content,
       page_type: c.page_type,
       visible_to_roles: c.visible_to_roles ?? [],
-      visible_to_players: (c.visible_to_players ?? []).map(playerName),
+      visible_to_players: Array.isArray(c.visible_to_players)
+        ? c.visible_to_players.map(playerName)
+        : [],
       required_flags: c.required_flags ?? [],
       required_flags_hints: c.required_flags_hints ?? [],
       grants_flags: c.grants_flags ?? [],
