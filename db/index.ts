@@ -612,6 +612,14 @@ export async function deleteFolder(id: number): Promise<{ ok: boolean; error?: s
   return { ok: true };
 }
 
+export async function reorderFolders(
+  updates: { id: number; sort_order: number; parent_id: number | null }[]
+): Promise<void> {
+  for (const { id, sort_order, parent_id } of updates) {
+    await sql`UPDATE page_folders SET sort_order = ${sort_order}, parent_id = ${parent_id ?? null} WHERE id = ${id}`;
+  }
+}
+
 // --- Player flags functions ---
 
 export async function getPlayerFlags(playerId: number): Promise<string[]> {

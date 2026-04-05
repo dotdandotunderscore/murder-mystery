@@ -52,7 +52,7 @@ export function Modal({
     <div className="fixed inset-0 z-50">
       <div className="fixed inset-0 bg-ink/80 animate-fade-in-fast" onClick={onClose} />
       <div className="fixed top-3 bottom-3 inset-x-0 xl:left-[12.5%] xl:right-[12.5%] bg-surface-3 border border-gold/30 flex flex-col animate-fade-in">
-        <div className="sticky top-0 flex items-center justify-between px-6 py-4 border-b border-gold/20 bg-surface-3 shrink-0">
+        <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-gold/20 bg-surface-3 shrink-0">
           <h3 className="text-xl text-cream">{title}</h3>
           <button
             onClick={onClose}

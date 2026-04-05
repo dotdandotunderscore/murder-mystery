@@ -70,6 +70,7 @@ export function PagesPanel() {
   const [expandedPages, setExpandedPages] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
   const [dragOverFolder, setDragOverFolder] = useState<number | "root" | null>(null);
+  const [dragOverFolderPos, setDragOverFolderPos] = useState<{ id: number; position: "before" | "after" } | null>(null);
   const [dragOverPage, setDragOverPage] = useState<{ id: number; position: "before" | "after" } | null>(null);
   const [touchDragging, setTouchDragging] = useState<Page | null>(null);
   const [ghostPos, setGhostPos] = useState<{ x: number; y: number } | null>(null);
@@ -212,6 +213,7 @@ export function PagesPanel() {
   const handleDrop = async (e: React.DragEvent, targetFolderId: number | null) => {
     e.preventDefault();
     setDragOverFolder(null);
+    setDragOverFolderPos(null);
     const pageIdStr = e.dataTransfer.getData("pageId");
     const folderIdStr = e.dataTransfer.getData("folderId");
 
@@ -271,6 +273,75 @@ export function PagesPanel() {
     if (!res.ok) { toast.error("Failed to reorder pages"); load(); }
   };
 
+  const dropFolderOnFolder = async (draggedFolder: Folder, targetFolder: Folder, position: "before" | "after") => {
+    const siblingFolders = folders
+      .filter((f) => f.parent_id === targetFolder.parent_id)
+      .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+
+    const without = siblingFolders.filter((f) => f.id !== draggedFolder.id);
+    const targetIdx = without.findIndex((f) => f.id === targetFolder.id);
+    const insertAt = position === "before" ? targetIdx : targetIdx + 1;
+    const reordered = [...without.slice(0, insertAt), draggedFolder, ...without.slice(insertAt)];
+    const updates = reordered.map((f, i) => ({ id: f.id, sort_order: i, parent_id: targetFolder.parent_id }));
+
+    setFolders((prev) => prev.map((f) => {
+      const u = updates.find((u) => u.id === f.id);
+      return u ? { ...f, sort_order: u.sort_order, parent_id: u.parent_id } : f;
+    }));
+
+    const res = await fetch("/api/admin/folders/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ updates }),
+    });
+    if (!res.ok) { toast.error("Failed to reorder folders"); load(); }
+  };
+
+  const handleDropOnFolder = async (e: React.DragEvent, targetFolder: Folder) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const third = rect.height / 3;
+    const relY = e.clientY - rect.top;
+    setDragOverFolderPos(null);
+    setDragOverFolder(null);
+
+    const folderIdStr = e.dataTransfer.getData("folderId");
+    const pageIdStr = e.dataTransfer.getData("pageId");
+
+    if (folderIdStr) {
+      const draggedId = parseInt(folderIdStr);
+      if (draggedId === targetFolder.id) return;
+      const draggedFolder = folders.find((f) => f.id === draggedId);
+      if (!draggedFolder) return;
+
+      if (relY < third) {
+        await dropFolderOnFolder(draggedFolder, targetFolder, "before");
+      } else if (relY > third * 2) {
+        await dropFolderOnFolder(draggedFolder, targetFolder, "after");
+      } else {
+        // Middle third = drop INTO folder (reparent)
+        if (draggedId === targetFolder.id) return;
+        setFolders((prev) => prev.map((f) => f.id === draggedId ? { ...f, parent_id: targetFolder.id } : f));
+        const res = await fetch(`/api/admin/folders/${draggedId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ parent_id: targetFolder.id }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          toast.error(data.error ?? "Failed to move folder");
+          load();
+        } else {
+          setExpandedFolders((prev) => new Set([...prev, targetFolder.id]));
+        }
+      }
+    } else if (pageIdStr) {
+      // Page dropped on folder — move into folder
+      handleDrop(e, targetFolder.id);
+    }
+  };
+
   const handleDropOnPage = async (e: React.DragEvent, targetPage: Page) => {
     e.preventDefault();
     e.stopPropagation();
@@ -296,6 +367,7 @@ export function PagesPanel() {
     setGhostPos(null);
     setDragOverPage(null);
     setDragOverFolder(null);
+    setDragOverFolderPos(null);
 
     if (!dragged) return;
 
@@ -407,7 +479,12 @@ export function PagesPanel() {
               {/* Folder row */}
               <div
                 ref={(el) => { if (el) folderRowRefs.current.set(folder.id, el); else folderRowRefs.current.delete(folder.id); }}
-                className={`flex items-center gap-2 py-1.5 group transition-colors cursor-pointer ${isDragOver ? "ring-1 ring-inset ring-gold bg-gold/10" : "hover:bg-surface-2"}`}
+                className={`flex items-center gap-2 py-1.5 group transition-colors cursor-pointer ${
+                  isDragOver ? "ring-1 ring-inset ring-gold bg-gold/10" :
+                  dragOverFolderPos?.id === folder.id && dragOverFolderPos.position === "before" ? "border-t-2 border-gold" :
+                  dragOverFolderPos?.id === folder.id && dragOverFolderPos.position === "after" ? "border-b-2 border-gold" :
+                  "hover:bg-surface-2"
+                }`}
                 style={{ paddingLeft: depth * 16 + 8, paddingRight: 8 }}
                 draggable
                 onClick={() => {
@@ -430,9 +507,25 @@ export function PagesPanel() {
                   setRenameValue(folder.name);
                 }}
                 onDragStart={(e) => { e.dataTransfer.setData("folderId", String(folder.id)); e.dataTransfer.effectAllowed = "move"; }}
-                onDragOver={(e) => { e.preventDefault(); setDragOverFolder(folder.id); }}
-                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverFolder(null); }}
-                onDrop={(e) => handleDrop(e, folder.id)}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const third = rect.height / 3;
+                  const relY = e.clientY - rect.top;
+                  if (relY < third) {
+                    setDragOverFolderPos((prev) => prev?.id === folder.id && prev.position === "before" ? prev : { id: folder.id, position: "before" });
+                    setDragOverFolder(null);
+                  } else if (relY > third * 2) {
+                    setDragOverFolderPos((prev) => prev?.id === folder.id && prev.position === "after" ? prev : { id: folder.id, position: "after" });
+                    setDragOverFolder(null);
+                  } else {
+                    setDragOverFolder(folder.id);
+                    setDragOverFolderPos(null);
+                  }
+                }}
+                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) { setDragOverFolder(null); setDragOverFolderPos(null); } }}
+                onDrop={(e) => handleDropOnFolder(e, folder)}
               >
                 <span className="text-muted text-xs w-4 shrink-0 select-none">
                   {isExpanded ? "▾" : "▸"}

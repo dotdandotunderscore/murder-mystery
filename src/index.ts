@@ -21,6 +21,7 @@ import {
   createFolder,
   updateFolder,
   deleteFolder,
+  reorderFolders,
   getPlayerFlags,
   grantPlayerFlags,
   getAllProgress,
@@ -543,6 +544,17 @@ server = Bun.serve({
         const body = (await req.json()) as { name: string; parent_id?: number | null };
         const folder = await createFolder(body.name, body.parent_id ?? null);
         return json(folder, 201);
+      },
+    },
+
+    "/api/admin/folders/reorder": {
+      POST: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const body = await req.json() as { updates: { id: number; sort_order: number; parent_id: number | null }[] };
+        if (!Array.isArray(body.updates)) return json({ error: "Bad request" }, 400);
+        await reorderFolders(body.updates);
+        return json({ ok: true });
       },
     },
 
