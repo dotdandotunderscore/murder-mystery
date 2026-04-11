@@ -157,6 +157,7 @@ function AppInner() {
         setCurrentPage("clue");
         setCodeInput("");
         pushView("clue", phrase.trim().toLowerCase());
+        window.scrollTo(0, 0);
       } else {
         const hints: string[] = data.hints ?? [];
         const id = toast.error(data.error ?? "Invalid code", {
