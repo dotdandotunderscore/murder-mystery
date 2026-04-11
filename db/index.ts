@@ -169,8 +169,17 @@ export async function initializeDatabase() {
       page_type TEXT DEFAULT 'text',
       visible_to_roles TEXT[],
       required_flags TEXT[],
+      required_flags_hints TEXT[],
+      excluded_by_flags TEXT[],
       grants_flags TEXT[],
+      grants_words TEXT[],
+      removes_flags TEXT[],
+      removes_words TEXT[],
+      grants_soul BOOLEAN DEFAULT FALSE,
+      game_config JSONB,
+      scan_code UUID,
       sort_order INT DEFAULT 0,
+      folder_id INT REFERENCES page_folders(id) ON DELETE SET NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `;
@@ -184,19 +193,6 @@ export async function initializeDatabase() {
       UNIQUE(player_id, flag)
     )
   `;
-
-  await sql`ALTER TABLE pages DROP CONSTRAINT IF EXISTS pages_code_phrase_key`;
-  await sql`ALTER TABLE pages DROP CONSTRAINT IF EXISTS clues_code_phrase_key`;
-  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS grants_words TEXT[]`;
-  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS required_flags_hints TEXT[]`;
-  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS removes_flags TEXT[]`;
-  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS excluded_by_flags TEXT[]`;
-  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS grants_soul BOOLEAN DEFAULT FALSE`;
-  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS removes_words TEXT[]`;
-  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS game_config JSONB`;
-  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS scan_code UUID`;
-  // Auto-populate scan_code for existing scan_target pages that don't have one
-  await sql`UPDATE pages SET scan_code = gen_random_uuid() WHERE page_type = 'scan_target' AND scan_code IS NULL`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS player_words (
@@ -217,25 +213,23 @@ export async function initializeDatabase() {
       answer TEXT[] NOT NULL,
       grants_flags TEXT[],
       grants_words TEXT[],
+      removes_flags TEXT[],
+      removes_words TEXT[],
       success_text TEXT,
+      wrong_answer_hints JSONB,
+      allow_any_order BOOLEAN DEFAULT false,
+      generic_wrong_text TEXT,
       sort_order INT DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `;
-
-  await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS success_text TEXT`;
-  await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS removes_flags TEXT[]`;
-  await sql`ALTER TABLE player_prompt_completions ADD COLUMN IF NOT EXISTS submitted_words TEXT[]`;
-  await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS removes_words TEXT[]`;
-  await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS wrong_answer_hints JSONB`;
-  await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS allow_any_order BOOLEAN DEFAULT false`;
-  await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS generic_wrong_text TEXT`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS player_prompt_completions (
       id SERIAL PRIMARY KEY,
       player_id INT REFERENCES players(id) ON DELETE CASCADE,
       prompt_id INT REFERENCES prompts(id) ON DELETE CASCADE,
+      submitted_words TEXT[],
       completed_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE(player_id, prompt_id)
     )
@@ -271,17 +265,6 @@ export async function initializeDatabase() {
       sort_order INT DEFAULT 0
     )
   `;
-  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS folder_id INT REFERENCES page_folders(id) ON DELETE SET NULL`;
-
-  // Rename team→role on players (idempotent: ignore error if already done or column absent)
-  try { await sql`ALTER TABLE players RENAME COLUMN team TO role`; } catch {}
-  await sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS team TEXT`;
-
-  // Rename visible_to_teams→visible_to_roles on pages (idempotent)
-  try { await sql`ALTER TABLE pages RENAME COLUMN visible_to_teams TO visible_to_roles`; } catch {}
-
-  // Drop deprecated visible_to_players column
-  await sql`ALTER TABLE pages DROP COLUMN IF EXISTS visible_to_players`;
 
   // Seed initial admin if none exists
   const adminCount = await sql`SELECT COUNT(*) as count FROM players WHERE is_admin = true`;

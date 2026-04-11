@@ -227,8 +227,8 @@ function buildSigilEntity(offsetStr: string, scale: number) {
 
     ctx.font = `bold 104px "Uncial Antiqua", serif`;
     ctx.fillStyle = "#eeffee";
-    ctx.fillText("GLEAMING EYES,", w / 2, h * 0.42);
-    ctx.fillText("RESPOND?", w / 2, h * 0.58);
+    ctx.fillText("GLEAMING EYES,", w / 2, h * 0.38);
+    ctx.fillText("RESPOND?", w / 2, h * 0.62);
   };
   drawText();
 
