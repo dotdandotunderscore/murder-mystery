@@ -4,6 +4,11 @@ import { sql } from "bun";
 // Bun.sql doesn't serialize JS arrays to PostgreSQL array literals automatically.
 // These helpers produce the correct literal format, e.g. {"foo","bar"} or {1,2,3}.
 
+/** Strip punctuation and collapse whitespace for code phrase comparison. */
+export function normalizeCodePhrase(s: string): string {
+  return s.replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
 function normalizeLower(arr: string[] | null | undefined): string[] | null {
   if (!arr || arr.length === 0) return null;
   return arr.map((s) => s.trim().toLowerCase()).filter(Boolean);
@@ -497,7 +502,7 @@ export async function createPage(data: {
       removes_flags, removes_words, grants_soul, game_config, scan_code, sort_order, folder_id
     )
     VALUES (
-      ${data.code_phrase.trim().toLowerCase()},
+      ${normalizeCodePhrase(data.code_phrase)},
       ${data.title},
       ${data.content ?? ""},
       ${pageType},
@@ -549,7 +554,7 @@ export async function updatePage(
     : sql`NULL`;
   const [page] = await sql`
     UPDATE pages SET
-      code_phrase = ${data.code_phrase.trim().toLowerCase()},
+      code_phrase = ${normalizeCodePhrase(data.code_phrase)},
       title = ${data.title},
       content = ${data.content ?? ""},
       page_type = ${pageType},

@@ -47,6 +47,7 @@ import {
   counterTrade,
   acceptTrade,
   cancelTrade,
+  normalizeCodePhrase,
   type Player,
 } from "../db/index";
 
@@ -223,7 +224,7 @@ server = Bun.serve({
         if (!player) return json({ error: "Unauthorized" }, 401);
 
         const body = (await req.json()) as { code_phrase: string };
-        const codePhrase = body.code_phrase?.trim()?.toLowerCase();
+        const codePhrase = normalizeCodePhrase(body.code_phrase ?? "");
         return unlockPage(player, codePhrase, false);
       },
     },
@@ -248,7 +249,7 @@ server = Bun.serve({
         }
 
         // Fallback: legacy code_phrase-based scan
-        const codePhrase = body.code_phrase?.trim()?.toLowerCase();
+        const codePhrase = normalizeCodePhrase(body.code_phrase ?? "");
         if (!codePhrase) return json({ error: "Unknown code, go find an admin" }, 404);
 
         await grantPlayerFlags(player.id, [`scanned_${codePhrase}`]);
