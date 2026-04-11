@@ -122,26 +122,26 @@ function TradeCard({ trade }: { trade: Trade }) {
       )}
 
       {/* Word display */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="text-center">
+      <div className="flex flex-col gap-1 mb-4">
+        <div>
           <p className="text-gold text-[10px] tracking-widest uppercase mb-1">
             {isInitiator ? "You offer" : `${trade.initiator_name} offers`}
           </p>
-          <span className="border border-gold/40 text-cream font-mono text-sm px-3 py-1">
+          <span className="inline-block border border-gold/40 text-cream font-mono text-sm px-3 py-1">
             {trade.initiator_word}
           </span>
         </div>
-        <span className="text-gold/40">⇄</span>
-        <div className="text-center">
+        <span className="text-gold/40 text-xs">⇅</span>
+        <div>
           <p className="text-gold text-[10px] tracking-widest uppercase mb-1">
             {isRecipient ? "You offer" : `${trade.recipient_name} offers`}
           </p>
           {trade.recipient_word ? (
-            <span className="border border-gold/40 text-cream font-mono text-sm px-3 py-1">
+            <span className="inline-block border border-gold/40 text-cream font-mono text-sm px-3 py-1">
               {trade.recipient_word}
             </span>
           ) : (
-            <span className="border border-gold/20 text-muted font-mono text-sm px-3 py-1 italic">
+            <span className="inline-block border border-gold/20 text-muted font-mono text-sm px-3 py-1 italic">
               ?
             </span>
           )}
