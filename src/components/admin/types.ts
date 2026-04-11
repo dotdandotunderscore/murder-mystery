@@ -25,10 +25,12 @@ export interface Page {
   visible_to_roles: string[] | null;
   required_flags: string[] | null;
   required_flags_hints: string[] | null;
+  excluded_by_flags: string[] | null;
   grants_flags: string[] | null;
   grants_words: string[] | null;
   removes_flags: string[] | null;
   removes_words: string[] | null;
+  grants_soul: boolean;
   game_config: Record<string, unknown> | null;
   scan_code: string | null;
   sort_order: number;

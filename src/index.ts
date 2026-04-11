@@ -58,6 +58,13 @@ function pushToPlayer(playerId: number, data: object) {
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(data));
 }
 
+function broadcastPlayerUpdated() {
+  const msg = JSON.stringify({ type: "player_updated" });
+  for (const ws of connections.values()) {
+    if (ws.readyState === 1) ws.send(msg);
+  }
+}
+
 // Initialize DB on startup
 await initializeDatabase();
 
@@ -124,12 +131,19 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
   }
 
   // Grant flags and words — skipped for mini-game/AR pages (claimed separately on win/confirm)
+  let soulInvolved = false;
   if (page.page_type !== "coin_flip" && page.page_type !== "slot_machine" && page.page_type !== "ar") {
     if (page.grants_flags && page.grants_flags.length > 0) {
       await grantPlayerFlags(player.id, page.grants_flags);
     }
     if (page.grants_words && page.grants_words.length > 0) {
-      await grantPlayerWords(player.id, page.grants_words);
+      const affected = await grantPlayerWords(player.id, page.grants_words);
+      if (affected.length > 0) soulInvolved = true;
+    }
+    if (page.grants_soul) {
+      const soulWord = `${player.name}'S SOUL`;
+      const affected = await grantPlayerWords(player.id, [soulWord]);
+      if (affected.length > 0) soulInvolved = true;
     }
   }
   // Remove flags and words
@@ -143,7 +157,13 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
     await removePlayerWordsByText(player.id, page.removes_words);
   }
 
-  const { visible_to_roles, required_flags, removes_flags, removes_words, scan_code, ...pageData } = page;
+  if (soulInvolved) {
+    broadcastPlayerUpdated();
+  } else {
+    pushToPlayer(player.id, { type: "player_updated" });
+  }
+
+  const { visible_to_roles, required_flags, excluded_by_flags, removes_flags, removes_words, scan_code, grants_soul, ...pageData } = page;
   return json(pageData);
 }
 
@@ -235,11 +255,18 @@ server = Bun.serve({
         const page = pages.find((p) => p.id === pageId);
         if (!page) return json({ error: "Not found" }, 404);
 
+        let soulInvolved = false;
         if (page.grants_flags && page.grants_flags.length > 0) {
           await grantPlayerFlags(player.id, page.grants_flags);
         }
         if (page.grants_words && page.grants_words.length > 0) {
-          await grantPlayerWords(player.id, page.grants_words);
+          const affected = await grantPlayerWords(player.id, page.grants_words);
+          if (affected.length > 0) soulInvolved = true;
+        }
+        if (page.grants_soul) {
+          const soulWord = `${player.name}'S SOUL`;
+          const affected = await grantPlayerWords(player.id, [soulWord]);
+          if (affected.length > 0) soulInvolved = true;
         }
         if (page.removes_flags && page.removes_flags.length > 0) {
           await removePlayerFlags(player.id, page.removes_flags);
@@ -248,6 +275,11 @@ server = Bun.serve({
           await removePlayerWordsByText(player.id, page.removes_words);
         }
 
+        if (soulInvolved) {
+          broadcastPlayerUpdated();
+        } else {
+          pushToPlayer(player.id, { type: "player_updated" });
+        }
         return json({ ok: true });
       },
     },
@@ -415,6 +447,13 @@ server = Bun.serve({
         const body = (await req.json()) as { words: string[] };
         if (!Array.isArray(body.words)) return json({ error: "Bad request" }, 400);
         const result = await submitPromptAnswer(promptId, player.id, body.words);
+        if (result.correct) {
+          if (result.affectedPlayerIds && result.affectedPlayerIds.length > 0) {
+            broadcastPlayerUpdated();
+          } else {
+            pushToPlayer(player.id, { type: "player_updated" });
+          }
+        }
         return json(result);
       },
     },
@@ -446,8 +485,12 @@ server = Bun.serve({
         const id = parseInt(req.params.id);
         const body = (await req.json()) as { words: string[] };
         if (!Array.isArray(body.words)) return json({ error: "Bad request" }, 400);
-        await grantPlayerWords(id, body.words);
-        pushToPlayer(id, { type: "player_updated" });
+        const affected = await grantPlayerWords(id, body.words);
+        if (affected.length > 0) {
+          broadcastPlayerUpdated();
+        } else {
+          pushToPlayer(id, { type: "player_updated" });
+        }
         return json({ ok: true });
       },
     },
@@ -597,6 +640,7 @@ server = Bun.serve({
 
         for (const c of pages) {
           c.required_flags?.forEach((f) => flags.add(f));
+          c.excluded_by_flags?.forEach((f) => flags.add(f));
           c.grants_flags?.forEach((f) => flags.add(f));
           c.grants_words?.forEach((w) => words.add(w));
           c.removes_flags?.forEach((f) => flags.add(f));
@@ -727,6 +771,12 @@ server = Bun.serve({
         if (trade) {
           pushToPlayer(trade.initiator_id, { type: "trade_update", trade });
           pushToPlayer(trade.recipient_id, { type: "trade_update", trade });
+        }
+        // If souls changed hands, broadcast to all so third parties see the change
+        if (result.affectedPlayerIds && result.affectedPlayerIds.length > 0) {
+          for (const pid of result.affectedPlayerIds) {
+            pushToPlayer(pid, { type: "player_updated" });
+          }
         }
         return json({ ok: true });
       },

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import QRCode from "qrcode";
 import { PromptModal } from "./PromptModal";
-import { Modal, Field, TagInput, RequiredFlagsEditor, inputCls, fieldCls, saveBtnCls, toArr, getErrorMessage } from "./shared";
+import { Modal, Field, Toggle, TagInput, RequiredFlagsEditor, inputCls, fieldCls, saveBtnCls, toArr, getErrorMessage } from "./shared";
 import { emptySuggestions } from "./types";
 import type { Page, Folder, Prompt, Suggestions } from "./types";
 
@@ -36,6 +36,8 @@ export const defaultPageForm = {
   visible_to_roles: [] as string[],
   required_flags: [] as string[],
   required_flags_hints: [] as string[],
+  excluded_by_flags: [] as string[],
+  grants_soul: false,
   grants_flags: [] as string[],
   grants_words: [] as string[],
   removes_flags: [] as string[],
@@ -136,6 +138,8 @@ export function PagesPanel() {
       visible_to_roles: c.visible_to_roles ?? [],
       required_flags: c.required_flags ?? [],
       required_flags_hints: c.required_flags_hints ?? [],
+      excluded_by_flags: c.excluded_by_flags ?? [],
+      grants_soul: c.grants_soul ?? false,
       grants_flags: c.grants_flags ?? [],
       grants_words: c.grants_words ?? [],
       removes_flags: c.removes_flags ?? [],
@@ -168,6 +172,8 @@ export function PagesPanel() {
       visible_to_roles: toArr(form.visible_to_roles),
       required_flags,
       required_flags_hints,
+      excluded_by_flags: toArr(form.excluded_by_flags),
+      grants_soul: form.grants_soul,
       grants_flags: toArr(form.grants_flags),
       grants_words: toArr(form.grants_words),
       removes_flags: toArr(form.removes_flags),
@@ -1118,6 +1124,14 @@ export function PagesPanel() {
               flagSuggestions={suggestions.flags}
             />
           </Field>
+          <Field label="Excluded By Flags" hint="If the player has ANY of these flags, this page is permanently hidden">
+            <TagInput
+              values={form.excluded_by_flags}
+              onChange={(v) => setF("excluded_by_flags", v)}
+              placeholder="e.g. completed act 1"
+              suggestions={suggestions.flags}
+            />
+          </Field>
           <Field label="Grants Flags" hint="Awarded when this page is unlocked">
             <TagInput
               values={form.grants_flags}
@@ -1132,6 +1146,12 @@ export function PagesPanel() {
               onChange={(v) => setF("grants_words", v)}
               placeholder="e.g. CANDLESTICK"
               suggestions={suggestions.words}
+            />
+          </Field>
+          <Field label="Grants Soul" hint="Player receives their own soul as a unique clue">
+            <Toggle
+              checked={form.grants_soul}
+              onChange={(v) => setF("grants_soul", v)}
             />
           </Field>
           <Field label="Removes Flags" hint="Flags stripped from the player when unlocked">

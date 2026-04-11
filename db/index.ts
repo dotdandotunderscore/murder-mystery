@@ -68,10 +68,12 @@ export interface Page {
   visible_to_roles: string[] | null;
   required_flags: string[] | null;
   required_flags_hints: string[] | null;
+  excluded_by_flags: string[] | null;
   grants_flags: string[] | null;
   grants_words: string[] | null;
   removes_flags: string[] | null;
   removes_words: string[] | null;
+  grants_soul: boolean;
   game_config: Record<string, unknown> | null;
   scan_code: string | null;
   sort_order: number;
@@ -183,6 +185,8 @@ export async function initializeDatabase() {
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS grants_words TEXT[]`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS required_flags_hints TEXT[]`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS removes_flags TEXT[]`;
+  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS excluded_by_flags TEXT[]`;
+  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS grants_soul BOOLEAN DEFAULT FALSE`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS removes_words TEXT[]`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS game_config JSONB`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS scan_code UUID`;
@@ -401,6 +405,15 @@ export async function getPageByCodeForPlayer(
     return page.required_flags.every((f) => flagsLower.includes(f.toLowerCase()));
   };
 
+  const isExcluded = (page: Page): boolean => {
+    if (!page.excluded_by_flags || page.excluded_by_flags.length === 0) return false;
+    return page.excluded_by_flags.some((f) => flagsLower.includes(f.toLowerCase()));
+  };
+
+  // Remove pages the player is excluded from — they're completely invisible
+  const eligible = rows.filter((p) => !isExcluded(p));
+  if (eligible.length === 0) return null;
+
   // Within each tier, pick the qualifying page with the highest sort_order
   // (furthest down in the admin list). This lets admins stack progressively
   // harder versions of a page and the player sees the most advanced one they qualify for.
@@ -411,7 +424,7 @@ export async function getPageByCodeForPlayer(
   };
 
   // Priority 1: listed for this player's role
-  const roleSpecific = rows.filter(
+  const roleSpecific = eligible.filter(
     (p) =>
       role &&
       p.visible_to_roles &&
@@ -421,7 +434,7 @@ export async function getPageByCodeForPlayer(
   if (p1) return { page: p1 };
 
   // Priority 2: open to all (no restrictions)
-  const open = rows.filter((p) => !p.visible_to_roles);
+  const open = eligible.filter((p) => !p.visible_to_roles);
   const p2 = bestIn(open);
   if (p2) return { page: p2 };
 
@@ -448,10 +461,12 @@ export async function createPage(data: {
   visible_to_roles?: string[] | null;
   required_flags?: string[] | null;
   required_flags_hints?: string[] | null;
+  excluded_by_flags?: string[] | null;
   grants_flags?: string[] | null;
   grants_words?: string[] | null;
   removes_flags?: string[] | null;
   removes_words?: string[] | null;
+  grants_soul?: boolean;
   game_config?: Record<string, unknown> | null;
   sort_order?: number;
   folder_id?: number | null;
@@ -468,9 +483,9 @@ export async function createPage(data: {
     INSERT INTO pages (
       code_phrase, title, content, page_type,
       visible_to_roles,
-      required_flags, required_flags_hints,
+      required_flags, required_flags_hints, excluded_by_flags,
       grants_flags, grants_words,
-      removes_flags, removes_words, game_config, scan_code, sort_order, folder_id
+      removes_flags, removes_words, grants_soul, game_config, scan_code, sort_order, folder_id
     )
     VALUES (
       ${data.code_phrase.trim().toLowerCase()},
@@ -480,10 +495,12 @@ export async function createPage(data: {
       ${pgTextArray(normalizeLower(data.visible_to_roles))},
       ${pgTextArray(normalizeLower(data.required_flags))},
       ${pgTextArray(normalizeHints(data.required_flags_hints))},
+      ${pgTextArray(normalizeLower(data.excluded_by_flags))},
       ${pgTextArray(normalizeLower(data.grants_flags))},
       ${pgTextArray(normalizeUpper(data.grants_words))},
       ${pgTextArray(normalizeLower(data.removes_flags))},
       ${pgTextArray(normalizeUpper(data.removes_words))},
+      ${data.grants_soul ?? false},
       ${data.game_config ? JSON.stringify(data.game_config) : null},
       ${scanCode},
       ${sortOrder},
@@ -504,6 +521,8 @@ export async function updatePage(
     visible_to_roles?: string[] | null;
     required_flags?: string[] | null;
     required_flags_hints?: string[] | null;
+    excluded_by_flags?: string[] | null;
+    grants_soul?: boolean;
     grants_flags?: string[] | null;
     grants_words?: string[] | null;
     removes_flags?: string[] | null;
@@ -528,10 +547,12 @@ export async function updatePage(
       visible_to_roles = ${pgTextArray(normalizeLower(data.visible_to_roles))},
       required_flags = ${pgTextArray(normalizeLower(data.required_flags))},
       required_flags_hints = ${pgTextArray(normalizeHints(data.required_flags_hints))},
+      excluded_by_flags = ${pgTextArray(normalizeLower(data.excluded_by_flags))},
       grants_flags = ${pgTextArray(normalizeLower(data.grants_flags))},
       grants_words = ${pgTextArray(normalizeUpper(data.grants_words))},
       removes_flags = ${pgTextArray(normalizeLower(data.removes_flags))},
       removes_words = ${pgTextArray(normalizeUpper(data.removes_words))},
+      grants_soul = ${data.grants_soul ?? false},
       game_config = ${data.game_config ? JSON.stringify(data.game_config) : null},
       scan_code = ${scanCodeExpr},
       sort_order = COALESCE(${data.sort_order !== undefined ? data.sort_order : null}, pages.sort_order),
@@ -672,14 +693,31 @@ export async function resetPlayerProgress(playerId: number): Promise<void> {
   await sql`DELETE FROM player_prompt_completions WHERE player_id = ${playerId}`;
 }
 
-export async function grantPlayerWords(playerId: number, words: string[]): Promise<void> {
+const SOUL_SUFFIX = "'S SOUL";
+
+export function isSoulWord(word: string): boolean {
+  return word.trim().toUpperCase().endsWith(SOUL_SUFFIX);
+}
+
+/** Grants words to a player. For soul words, enforces uniqueness by removing
+ *  them from all other players first. Returns IDs of other players who lost a soul. */
+export async function grantPlayerWords(playerId: number, words: string[]): Promise<number[]> {
+  const affectedIds = new Set<number>();
   for (const word of words) {
+    const upper = word.trim().toUpperCase();
+    if (isSoulWord(upper)) {
+      const removed = await sql`
+        DELETE FROM player_words WHERE word = ${upper} AND player_id != ${playerId} RETURNING player_id
+      `;
+      for (const r of removed) affectedIds.add(r.player_id);
+    }
     await sql`
       INSERT INTO player_words (player_id, word)
-      VALUES (${playerId}, ${word.trim().toUpperCase()})
+      VALUES (${playerId}, ${upper})
       ON CONFLICT (player_id, word) DO NOTHING
     `;
   }
+  return [...affectedIds];
 }
 
 export async function removePlayerWord(playerId: number, wordId: number): Promise<boolean> {
@@ -913,7 +951,7 @@ export async function counterTrade(
 export async function acceptTrade(
   tradeId: number,
   initiatorId: number
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; affectedPlayerIds?: number[] }> {
   const trade = await getTradeById(tradeId);
   if (!trade) return { ok: false, error: "Trade not found" };
   if (trade.initiator_id !== initiatorId) return { ok: false, error: "Not your trade" };
@@ -934,14 +972,27 @@ export async function acceptTrade(
     return { ok: false, error: "Partner's offered word is no longer in their inventory" };
   }
 
-  // Swap words
+  // Swap words — enforce soul uniqueness for any soul words changing hands
+  const affectedIds = new Set<number>();
   await sql`DELETE FROM player_words WHERE player_id = ${trade.initiator_id} AND word = ${trade.initiator_word}`;
   await sql`DELETE FROM player_words WHERE player_id = ${trade.recipient_id} AND word = ${trade.recipient_word}`;
+  if (isSoulWord(trade.initiator_word)) {
+    const removed = await sql`DELETE FROM player_words WHERE word = ${trade.initiator_word} AND player_id != ${trade.recipient_id} RETURNING player_id`;
+    for (const r of removed) affectedIds.add(r.player_id);
+  }
+  if (isSoulWord(trade.recipient_word)) {
+    const removed = await sql`DELETE FROM player_words WHERE word = ${trade.recipient_word} AND player_id != ${trade.initiator_id} RETURNING player_id`;
+    for (const r of removed) affectedIds.add(r.player_id);
+  }
   await sql`INSERT INTO player_words (player_id, word) VALUES (${trade.recipient_id}, ${trade.initiator_word}) ON CONFLICT DO NOTHING`;
   await sql`INSERT INTO player_words (player_id, word) VALUES (${trade.initiator_id}, ${trade.recipient_word}) ON CONFLICT DO NOTHING`;
   await sql`UPDATE trades SET status = 'accepted' WHERE id = ${tradeId}`;
 
-  return { ok: true };
+  // Remove the two traders from affected set — they're already notified via trade_update
+  affectedIds.delete(trade.initiator_id);
+  affectedIds.delete(trade.recipient_id);
+
+  return { ok: true, affectedPlayerIds: [...affectedIds] };
 }
 
 export async function cancelTrade(tradeId: number, playerId: number): Promise<boolean> {
@@ -959,7 +1010,7 @@ export async function submitPromptAnswer(
   promptId: number,
   playerId: number,
   words: string[]
-): Promise<{ correct: boolean; grants_flags?: string[]; grants_words?: string[]; success_text?: string; hints?: string[] }> {
+): Promise<{ correct: boolean; grants_flags?: string[]; grants_words?: string[]; success_text?: string; hints?: string[]; affectedPlayerIds?: number[] }> {
   const prompt = await getPromptById(promptId);
   if (!prompt) return { correct: false };
 
@@ -1020,8 +1071,9 @@ export async function submitPromptAnswer(
   if (prompt.grants_flags && prompt.grants_flags.length > 0) {
     await grantPlayerFlags(playerId, prompt.grants_flags);
   }
+  let affectedPlayerIds: number[] = [];
   if (prompt.grants_words && prompt.grants_words.length > 0) {
-    await grantPlayerWords(playerId, prompt.grants_words);
+    affectedPlayerIds = await grantPlayerWords(playerId, prompt.grants_words);
   }
   if (prompt.removes_flags && prompt.removes_flags.length > 0) {
     await removePlayerFlags(playerId, prompt.removes_flags);
@@ -1035,5 +1087,6 @@ export async function submitPromptAnswer(
     grants_flags: prompt.grants_flags ?? undefined,
     grants_words: prompt.grants_words ?? undefined,
     success_text: prompt.success_text ?? undefined,
+    affectedPlayerIds: affectedPlayerIds.length > 0 ? affectedPlayerIds : undefined,
   };
 }
