@@ -170,6 +170,10 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
   }
 
   const { visible_to_roles, required_flags, excluded_by_flags, removes_flags, removes_words, scan_code, grants_soul, ...pageData } = page;
+  if (alreadyClaimed) {
+    pageData.grants_words = null;
+    pageData.grants_flags = null;
+  }
   return json(pageData);
 }
 
