@@ -151,7 +151,7 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
         grantedWords.push(...page.grants_words);
       }
       if (page.grants_soul) {
-        const soulWord = `${player.name}'S SOUL`;
+        const soulWord = `${player.name.toUpperCase()}'S SOUL`;
         const affected = await grantPlayerWords(player.id, [soulWord]);
         if (affected.length > 0) soulInvolved = true;
         grantedWords.push(soulWord);
@@ -178,7 +178,7 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
   const { visible_to_roles, required_flags, excluded_by_flags, removes_flags, removes_words, scan_code, grants_soul, ...pageData } = page;
   // highlight_words always reflects what this page would grant (for in-content highlighting)
   const allWords = [...(page.grants_words ?? [])];
-  if (page.grants_soul) allWords.push(`${player.name}'S SOUL`);
+  if (page.grants_soul) allWords.push(`${player.name.toUpperCase()}'S SOUL`);
   const highlightWords = [...allWords, ...(page.grants_flags ?? [])];
   pageData.grants_words = grantedWords.length > 0 ? grantedWords : null;
   pageData.grants_flags = grantedFlags.length > 0 ? grantedFlags : null;
@@ -285,7 +285,7 @@ server = Bun.serve({
           if (affected.length > 0) soulInvolved = true;
         }
         if (page.grants_soul) {
-          const soulWord = `${player.name}'S SOUL`;
+          const soulWord = `${player.name.toUpperCase()}'S SOUL`;
           const affected = await grantPlayerWords(player.id, [soulWord]);
           if (affected.length > 0) soulInvolved = true;
         }

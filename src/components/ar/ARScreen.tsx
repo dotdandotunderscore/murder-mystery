@@ -117,11 +117,11 @@ export default function ARScreen({ pageId, gameConfig, grantsFlags, grantsWords 
       {/* AR viewfinder — MindAR renders video + canvas into this div.
           MindAR positions its children with position:absolute, so this
           container must have explicit dimensions and relative positioning.
-          aspect-[4/3] matches the default camera ratio (640x480). */}
+          aspect-[3/4] gives a phone-portrait shape. */}
       <div
         ref={containerRef}
         className="relative bg-black w-full overflow-hidden"
-        style={{ aspectRatio: "4/3" }}
+        style={{ aspectRatio: "3/4" }}
       />
 
       {/* Status / controls below the viewfinder */}
