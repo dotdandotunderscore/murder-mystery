@@ -166,7 +166,10 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
     if (page.page_type !== "coin_flip" && page.page_type !== "slot_machine" && page.page_type !== "ar" && page.removes_words && page.removes_words.length > 0) {
       await removePlayerWordsByText(player.id, page.removes_words);
     }
-    await claimPage(player.id, page.id);
+    // Mini-game/AR pages claim separately via /api/pages/:id/claim
+    if (page.page_type !== "coin_flip" && page.page_type !== "slot_machine" && page.page_type !== "ar") {
+      await claimPage(player.id, page.id);
+    }
 
     if (soulInvolved) {
       broadcastPlayerUpdated();
