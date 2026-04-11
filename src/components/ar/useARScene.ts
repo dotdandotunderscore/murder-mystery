@@ -169,8 +169,9 @@ function cleanup(mindarThree: any, container: HTMLElement) {
 }
 
 /**
- * Nested wireframe dice polyhedra (d20 → d12 → d8 → d6 → d4) in
- * eldritch green, each with a "glow" shell for bloom effect.
+ * Glowing occult text with orbiting wireframe symbols.
+ * Renders "GLEAMING EYES, RESPOND?" in Uncial Antiqua with layered glow,
+ * surrounded by slowly orbiting wireframe geodesics.
  *
  * MindAR coords: target image spans ~-0.5 to 0.5 on X/Y at z=0.
  */
@@ -180,62 +181,99 @@ function buildSigilEntity(offsetStr: string, scale: number) {
   group.position.set(parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0.5);
   group.scale.setScalar(scale);
 
-  // Lovecraftian green palette: pale outer → sickly bright core
-  const layers = [
-    // d20 — outermost, slow rotation
-    { geo: new THREE.IcosahedronGeometry(0.38, 0), color: 0x1a4a3a, glow: 0x2d8a6a, opacity: 0.4, axis: [0, 1, 0], speed: 0.35 },
-    // d12
-    { geo: new THREE.DodecahedronGeometry(0.30), color: 0x2d7a5a, glow: 0x40c090, opacity: 0.55, axis: [0, 1, 0], speed: 0.55, rot: [Math.PI / 4, 0, Math.PI / 9] as const },
-    // d8
-    { geo: new THREE.OctahedronGeometry(0.22), color: 0x40aa70, glow: 0x60e0a0, opacity: 0.7, axis: [1, -1, 0], speed: 0.75 },
-    // d6
-    { geo: new THREE.BoxGeometry(0.28, 0.28, 0.28), color: 0x50cc80, glow: 0x80ffbb, opacity: 0.85, axis: [1, 1, 0], speed: 1.1, rot: [Math.PI / 6, 0, Math.PI / 6] as const },
-    // d4 — innermost, fast spin, brightest
-    { geo: new THREE.TetrahedronGeometry(0.14), color: 0x80ffbb, glow: 0xccffee, opacity: 1, axis: [-1, 1, -1], speed: 1.8 },
+  // --- Glowing text plane ---
+  const canvas = document.createElement("canvas");
+  const w = 1024, h = 512;
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+
+  // Occult symbols above and below
+  const symbols = "✧  ☽  ◉  ☽  ✧";
+  const drawText = () => {
+    ctx.clearRect(0, 0, w, h);
+
+    // Outer glow layers (drawn first, largest blur)
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const [blur, alpha] of [[40, 0.3], [20, 0.5], [10, 0.7]] as const) {
+      ctx.shadowColor = "#40e090";
+      ctx.shadowBlur = blur;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      ctx.globalAlpha = alpha;
+
+      // Symbols
+      ctx.font = `28px "Uncial Antiqua", serif`;
+      ctx.fillStyle = "#60e0a0";
+      ctx.fillText(symbols, w / 2, h * 0.22);
+      ctx.fillText(symbols, w / 2, h * 0.78);
+
+      // Main text — two lines
+      ctx.font = `bold 52px "Uncial Antiqua", serif`;
+      ctx.fillStyle = "#ccffee";
+      ctx.fillText("GLEAMING EYES,", w / 2, h * 0.42);
+      ctx.fillText("RESPOND?", w / 2, h * 0.58);
+    }
+
+    // Crisp foreground pass
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+
+    ctx.font = `28px "Uncial Antiqua", serif`;
+    ctx.fillStyle = "#80ffbb";
+    ctx.fillText(symbols, w / 2, h * 0.22);
+    ctx.fillText(symbols, w / 2, h * 0.78);
+
+    ctx.font = `bold 52px "Uncial Antiqua", serif`;
+    ctx.fillStyle = "#eeffee";
+    ctx.fillText("GLEAMING EYES,", w / 2, h * 0.42);
+    ctx.fillText("RESPOND?", w / 2, h * 0.58);
+  };
+  drawText();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  const planeMat = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const planeGeo = new THREE.PlaneGeometry(0.8, 0.4);
+  const textMesh = new THREE.Mesh(planeGeo, planeMat);
+  group.add(textMesh);
+
+  // --- Orbiting wireframe geodesics ---
+  const orbiters: { pivot: THREE.Group; speed: number }[] = [];
+  const orbitConfigs = [
+    { geo: new THREE.IcosahedronGeometry(0.04, 0), radius: 0.48, color: 0x2d8a6a, glow: 0x40e090, speed: 0.6, yOffset: 0, phase: 0 },
+    { geo: new THREE.OctahedronGeometry(0.035), radius: 0.45, color: 0x40aa70, glow: 0x60e0a0, speed: -0.8, yOffset: 0.02, phase: Math.PI * 0.66 },
+    { geo: new THREE.TetrahedronGeometry(0.03), radius: 0.42, color: 0x80ffbb, glow: 0xccffee, speed: 1.0, yOffset: -0.02, phase: Math.PI * 1.33 },
+    { geo: new THREE.DodecahedronGeometry(0.03), radius: 0.46, color: 0x50cc80, glow: 0x80ffbb, speed: -0.5, yOffset: 0.01, phase: Math.PI * 0.5 },
+    { geo: new THREE.IcosahedronGeometry(0.025, 0), radius: 0.44, color: 0x60e0a0, glow: 0xccffee, speed: 0.9, yOffset: -0.01, phase: Math.PI },
   ];
 
-  const meshes: { mesh: THREE.Group; axis: THREE.Vector3; speed: number }[] = [];
+  for (const oc of orbitConfigs) {
+    const pivot = new THREE.Group();
+    pivot.rotation.y = oc.phase;
 
-  for (const l of layers) {
-    const dieGroup = new THREE.Group();
+    const orbiterGroup = new THREE.Group();
+    orbiterGroup.position.set(oc.radius, oc.yOffset, 0);
 
-    // Core wireframe — bright, full opacity
-    const coreMat = new THREE.MeshBasicMaterial({
-      color: l.color,
-      wireframe: true,
-      wireframeLinewidth: 2,
-      transparent: l.opacity < 1,
-      opacity: l.opacity,
-    });
-    dieGroup.add(new THREE.Mesh(l.geo, coreMat));
+    // Core wireframe
+    const mat = new THREE.MeshBasicMaterial({ color: oc.color, wireframe: true, transparent: true, opacity: 0.9 });
+    orbiterGroup.add(new THREE.Mesh(oc.geo, mat));
 
-    // Glow shell — slightly larger, very transparent, same wireframe
-    const glowGeo = l.geo.clone();
-    glowGeo.scale(1.08, 1.08, 1.08);
-    const glowMat = new THREE.MeshBasicMaterial({
-      color: l.glow,
-      wireframe: true,
-      wireframeLinewidth: 2,
-      transparent: true,
-      opacity: l.opacity * 0.3,
-    });
-    dieGroup.add(new THREE.Mesh(glowGeo, glowMat));
+    // Glow shell
+    const glowGeo = oc.geo.clone();
+    glowGeo.scale(1.4, 1.4, 1.4);
+    const glowMat = new THREE.MeshBasicMaterial({ color: oc.glow, wireframe: true, transparent: true, opacity: 0.25 });
+    orbiterGroup.add(new THREE.Mesh(glowGeo, glowMat));
 
-    // Even larger faint shell for outer bloom
-    const bloomGeo = l.geo.clone();
-    bloomGeo.scale(1.2, 1.2, 1.2);
-    const bloomMat = new THREE.MeshBasicMaterial({
-      color: l.glow,
-      wireframe: true,
-      wireframeLinewidth: 1,
-      transparent: true,
-      opacity: l.opacity * 0.12,
-    });
-    dieGroup.add(new THREE.Mesh(bloomGeo, bloomMat));
-
-    if (l.rot) dieGroup.rotation.set(l.rot[0], l.rot[1], l.rot[2]);
-    group.add(dieGroup);
-    meshes.push({ mesh: dieGroup, axis: new THREE.Vector3(...l.axis).normalize(), speed: l.speed });
+    pivot.add(orbiterGroup);
+    group.add(pivot);
+    orbiters.push({ pivot, speed: oc.speed });
   }
 
   const clock = new THREE.Clock();
@@ -245,10 +283,14 @@ function buildSigilEntity(offsetStr: string, scale: number) {
     group,
     update() {
       const delta = clock.getDelta();
-      // Breathing float along Z (towards/away from camera)
-      group.position.z = baseZ + Math.sin(clock.elapsedTime * 2.1) * 0.04;
-      for (const { mesh, axis, speed } of meshes) {
-        mesh.rotateOnAxis(axis, speed * delta);
+      const t = clock.elapsedTime;
+      // Breathing float
+      group.position.z = baseZ + Math.sin(t * 2.1) * 0.04;
+      // Pulsing text glow
+      planeMat.opacity = 0.85 + Math.sin(t * 3) * 0.15;
+      // Orbit the geodesics
+      for (const { pivot, speed } of orbiters) {
+        pivot.rotation.y += speed * delta;
       }
     },
   };
