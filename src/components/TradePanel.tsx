@@ -131,7 +131,6 @@ function TradeCard({ trade }: { trade: Trade }) {
             {trade.initiator_word}
           </span>
         </div>
-        <span className="text-gold/40 text-xs">⇅</span>
         <div>
           <p className="text-gold text-[10px] tracking-widest uppercase mb-1">
             {isRecipient ? "You offer" : `${trade.recipient_name} offers`}

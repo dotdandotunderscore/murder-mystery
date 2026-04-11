@@ -1077,7 +1077,7 @@ export async function submitPromptAnswer(
         if (hint) hints.push(hint);
       }
     }
-    return { correct: false, ...(hints.length > 0 ? { hints } : {}), ...(prompt.generic_wrong_text ? { generic_wrong_text: prompt.generic_wrong_text } : {}) };
+    return { correct: false, ...(hints.length > 0 ? { hints } : prompt.generic_wrong_text ? { generic_wrong_text: prompt.generic_wrong_text } : {}) };
   }
 
   const submittedUpper = words.map((w) => w.trim().toUpperCase());
