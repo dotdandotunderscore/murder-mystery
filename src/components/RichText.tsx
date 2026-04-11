@@ -1,89 +1,87 @@
 import React from "react";
 
-// Converts newlines in a plain string to <br/> elements.
-function applyLineBreaks(text: string, keyPrefix: string): React.ReactNode[] {
+interface FormattedSegment {
+  text: string;
+  bold: boolean;
+  italic: boolean;
+}
+
+// First pass: extract bold/italic formatting from the full text before any splitting
+function parseFormatting(text: string): FormattedSegment[] {
+  const pattern = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*)/g;
+  const segments: FormattedSegment[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > last) {
+      segments.push({ text: text.slice(last, match.index), bold: false, italic: false });
+    }
+    if (match[2] != null) {
+      segments.push({ text: match[2], bold: true, italic: true });
+    } else if (match[3] != null) {
+      segments.push({ text: match[3], bold: true, italic: false });
+    } else if (match[4] != null) {
+      segments.push({ text: match[4], bold: false, italic: true });
+    }
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) {
+    segments.push({ text: text.slice(last), bold: false, italic: false });
+  }
+  return segments;
+}
+
+function withLineBreaks(text: string, key: string): React.ReactNode[] {
   const parts = text.split("\n");
   if (parts.length === 1) return [text];
   const nodes: React.ReactNode[] = [];
   parts.forEach((part, i) => {
-    if (i > 0) nodes.push(<br key={`${keyPrefix}-br${i}`} />);
+    if (i > 0) nodes.push(<br key={`${key}-br${i}`} />);
     if (part) nodes.push(part);
   });
   return nodes;
 }
 
-// Applies **bold** and *italic* formatting to a plain string, returning ReactNodes.
-// Also handles \n → <br/> within plain text segments.
-function applyFormatting(text: string, keyPrefix: string): React.ReactNode[] {
-  // Match ***bold+italic*** first, then **bold**, then *italic*
-  const pattern = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*)/g;
+function renderWithHighlights(text: string, highlights: string[], key: string): React.ReactNode[] {
+  if (!highlights.length) return withLineBreaks(text, key);
+
+  const escaped = highlights.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
+  const parts = text.split(pattern);
+
+  const nodes: React.ReactNode[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]!;
+    if (highlights.some((t) => t.toLowerCase() === part.toLowerCase())) {
+      nodes.push(<span key={`${key}-h${i}`} className="text-gold font-semibold">{part}</span>);
+    } else {
+      nodes.push(...withLineBreaks(part, `${key}-${i}`));
+    }
+  }
+  return nodes;
+}
+
+// Second pass: within each formatted segment, split on [[...]] links and apply highlights
+function renderSegment(
+  seg: FormattedSegment,
+  highlights: string[],
+  onCode: ((phrase: string) => void) | undefined,
+  segKey: string
+): React.ReactNode {
+  const linkPattern = /\[\[([^\]]+)\]\]/g;
   const nodes: React.ReactNode[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
 
-  while ((match = pattern.exec(text)) !== null) {
-    if (match.index > last) nodes.push(...applyLineBreaks(text.slice(last, match.index), `${keyPrefix}-${last}`));
-    if (match[2] != null) {
-      nodes.push(<strong key={`${keyPrefix}-bi${match.index}`}><em>{match[2]}</em></strong>);
-    } else if (match[3] != null) {
-      nodes.push(<strong key={`${keyPrefix}-b${match.index}`}>{match[3]}</strong>);
-    } else if (match[4] != null) {
-      nodes.push(<em key={`${keyPrefix}-i${match.index}`}>{match[4]}</em>);
-    }
-    last = match.index + match[0].length;
-  }
-  if (last < text.length) nodes.push(...applyLineBreaks(text.slice(last), `${keyPrefix}-${last}`));
-  return nodes;
-}
-
-// Splits text on highlighted terms, returning spans with gold styling for matches,
-// then applies bold/italic formatting to each segment.
-function applyHighlights(text: string, terms: string[]): React.ReactNode {
-  if (!terms.length) return applyFormatting(text, "f");
-  const escaped = terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
-  const parts = text.split(pattern);
-  return parts.map((part, i) =>
-    terms.some((t) => t.toLowerCase() === part.toLowerCase()) ? (
-      <span key={i} className="text-gold font-semibold">{part}</span>
-    ) : (
-      <React.Fragment key={i}>{applyFormatting(part, `f${i}`)}</React.Fragment>
-    )
-  );
-}
-
-interface Props {
-  text: string;
-  /** Words/flags to highlight in gold (existing highlightText behaviour). */
-  highlights?: string[];
-  /** Called when the player clicks a [[code-phrase]] link. */
-  onCode?: (phrase: string) => void;
-}
-
-/**
- * Renders text with two special behaviours:
- *   - [[code-phrase]] → a clickable inline link that calls onCode(phrase)
- *   - highlight terms → wrapped in gold <span>s
- *
- * Usage:  <RichText text={content} highlights={grantedWords} onCode={handleCode} />
- */
-export default function RichText({ text, highlights = [], onCode }: Props) {
-  if (!text) return null;
-
-  // Split on [[...]] tokens
-  const pattern = /\[\[([^\]]+)\]\]/g;
-  const nodes: React.ReactNode[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = pattern.exec(text)) !== null) {
-    const before = text.slice(lastIndex, match.index);
-    if (before) nodes.push(applyHighlights(before, highlights));
+  while ((match = linkPattern.exec(seg.text)) !== null) {
+    const before = seg.text.slice(last, match.index);
+    if (before) nodes.push(...renderWithHighlights(before, highlights, `${segKey}-${last}`));
 
     const phrase = (match[1] ?? "").trim();
     nodes.push(
       <button
-        key={match.index}
+        key={`${segKey}-link${match.index}`}
         onClick={() => onCode?.(phrase.toLowerCase())}
         disabled={!onCode}
         className="underline decoration-dotted underline-offset-2 text-gold hover:text-gold-light transition-colors disabled:cursor-default"
@@ -91,17 +89,35 @@ export default function RichText({ text, highlights = [], onCode }: Props) {
         {phrase}
       </button>
     );
-    lastIndex = match.index + match[0].length;
+    last = match.index + match[0].length;
   }
 
-  const remaining = text.slice(lastIndex);
-  if (remaining) nodes.push(applyHighlights(remaining, highlights));
+  const remaining = seg.text.slice(last);
+  if (remaining) nodes.push(...renderWithHighlights(remaining, highlights, `${segKey}-${last}`));
 
+  if (seg.italic && seg.bold) {
+    return <strong key={segKey}><em>{nodes}</em></strong>;
+  } else if (seg.bold) {
+    return <strong key={segKey}>{nodes}</strong>;
+  } else if (seg.italic) {
+    return <em key={segKey}>{nodes}</em>;
+  }
+  return <React.Fragment key={segKey}>{nodes}</React.Fragment>;
+}
+
+interface Props {
+  text: string;
+  highlights?: string[];
+  onCode?: (phrase: string) => void;
+}
+
+export default function RichText({ text, highlights = [], onCode }: Props) {
+  if (!text) return null;
+
+  const segments = parseFormatting(text);
   return (
     <>
-      {nodes.map((node, i) => (
-        <React.Fragment key={i}>{node}</React.Fragment>
-      ))}
+      {segments.map((seg, i) => renderSegment(seg, highlights, onCode, `s${i}`))}
     </>
   );
 }
