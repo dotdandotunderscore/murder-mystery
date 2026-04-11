@@ -363,7 +363,7 @@ All pages are `page_type: text`, `visible_to_roles: ["investigator"]` unless not
 >
 > Time to lay your cards on the table, detective. Everything you've found, everything you've traded for, everything the Pale Flame showed you in the dark. One accusation. Make it count.
 
-**Prompt:** `_____ killed Mr. Sage with the _____ in the _____ because he found the _____. The _____ proves this wasn't his first victim. The _____ places him at the scene. And the _____ shows how they made it all disappear.`
+**Prompt:** `[THE VIPER] killed Mr. Sage with the [JADE DAGGER] in the [GREEN ROOM] because he found the [BLACK LEDGER]. The [HIT LIST] proves this wasn't his first victim. The [BARKEEP'S NOTE] places him at the scene. And the [CLEANING ROTA] shows how they made it all disappear.`
 
 **Answer:** THE VIPER, JADE DAGGER, GREEN ROOM, BLACK LEDGER, HIT LIST, BARKEEP'S NOTE, CLEANING ROTA
 

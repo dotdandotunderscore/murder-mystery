@@ -131,7 +131,7 @@ export default function PromptBlock({
           — Solved —
         </p>
         <p className="text-muted text-sm italic mb-2"><RichText text={prompt.question} onCode={onCode} /></p>
-        <div className="text-cream text-sm leading-loose">
+        <div className="text-cream leading-loose">
           {lines.map((line, li) => (
             <React.Fragment key={li}>
               {li > 0 && <br />}
