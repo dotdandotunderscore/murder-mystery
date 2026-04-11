@@ -210,7 +210,7 @@ function buildSigilEntity(offsetStr: string, scale: number) {
       ctx.fillText(symbols, w / 2, h * 0.78);
 
       // Main text — two lines
-      ctx.font = `bold 52px "Uncial Antiqua", serif`;
+      ctx.font = `bold 104px "Uncial Antiqua", serif`;
       ctx.fillStyle = "#ccffee";
       ctx.fillText("GLEAMING EYES,", w / 2, h * 0.42);
       ctx.fillText("RESPOND?", w / 2, h * 0.58);
@@ -225,7 +225,7 @@ function buildSigilEntity(offsetStr: string, scale: number) {
     ctx.fillText(symbols, w / 2, h * 0.22);
     ctx.fillText(symbols, w / 2, h * 0.78);
 
-    ctx.font = `bold 52px "Uncial Antiqua", serif`;
+    ctx.font = `bold 104px "Uncial Antiqua", serif`;
     ctx.fillStyle = "#eeffee";
     ctx.fillText("GLEAMING EYES,", w / 2, h * 0.42);
     ctx.fillText("RESPOND?", w / 2, h * 0.58);
