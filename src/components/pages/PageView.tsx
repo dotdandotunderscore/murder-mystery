@@ -14,6 +14,7 @@ interface ClueResult {
   page_type: string;
   grants_flags: string[] | null;
   grants_words: string[] | null;
+  highlight_words: string[] | null;
   game_config: Record<string, unknown> | null;
 }
 
@@ -93,7 +94,7 @@ export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps
     }
   };
 
-  const highlightTerms = [...(clue.grants_words ?? []), ...(clue.grants_flags ?? [])];
+  const highlightTerms = clue.highlight_words ?? [...(clue.grants_words ?? []), ...(clue.grants_flags ?? [])];
   const hasGrants = (clue.grants_words?.length ?? 0) > 0 || (clue.grants_flags?.length ?? 0) > 0;
   const hasActivePrompts = prompts.some((p) => !p.completed);
 
