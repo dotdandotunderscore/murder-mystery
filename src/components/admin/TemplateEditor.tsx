@@ -30,7 +30,7 @@ export function TemplateEditor({
   onChange: (v: string) => void;
   wordSuggestions: string[];
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const insertWord = (word: string) => {
     const el = inputRef.current;
@@ -53,7 +53,7 @@ export function TemplateEditor({
 
   return (
     <div className="space-y-2">
-      <input
+      <textarea
         ref={inputRef}
         className={inputCls}
         value={value}
@@ -62,6 +62,7 @@ export function TemplateEditor({
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
+        rows={3}
       />
       {wordSuggestions.length > 0 && (
         <div className="flex flex-wrap gap-1.5">

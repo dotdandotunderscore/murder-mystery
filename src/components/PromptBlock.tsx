@@ -28,6 +28,23 @@ function parseTemplate(template: string): string[] {
   return template.split("_____");
 }
 
+// Splits template segments into lines. Each line is an array of { text, gapAfter } items.
+// This lets us render each line as its own flex row so \n actually breaks.
+function segmentsToLines(segments: string[]): { text: string; gapAfter: boolean }[][] {
+  const lines: { text: string; gapAfter: boolean }[][] = [[]];
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i]!;
+    const hasGap = i < segments.length - 1;
+    const parts = seg.split("\n");
+    for (let j = 0; j < parts.length; j++) {
+      if (j > 0) lines.push([]);
+      const isLastPart = j === parts.length - 1;
+      lines[lines.length - 1]!.push({ text: parts[j]!, gapAfter: isLastPart && hasGap });
+    }
+  }
+  return lines;
+}
+
 
 export default function PromptBlock({
   prompt,
@@ -55,6 +72,18 @@ export default function PromptBlock({
 
   const segments = parseTemplate(prompt.template);
   const gapCount = segments.length - 1;
+  const lines = segmentsToLines(segments);
+  // Map (lineIndex, itemIndex) → flat gap index
+  const gapIndex = (li: number, ii: number): number => {
+    let count = 0;
+    for (let l = 0; l < lines.length; l++) {
+      for (let i = 0; i < lines[l]!.length; i++) {
+        if (l === li && i === ii) return count;
+        if (lines[l]![i]!.gapAfter) count++;
+      }
+    }
+    return count;
+  };
   const allFilled = placements.slice(0, gapCount).every((w) => w !== null);
 
   const handleSubmit = async () => {
@@ -102,15 +131,20 @@ export default function PromptBlock({
           — Solved —
         </p>
         <p className="text-muted text-sm italic mb-2"><RichText text={prompt.question} onCode={onCode} /></p>
-        <div className="flex flex-wrap gap-1 text-cream text-sm leading-relaxed">
-          {segments.map((seg, i) => (
-            <React.Fragment key={i}>
-              <span><RichText text={seg} onCode={onCode} /></span>
-              {i < gapCount && (
-                <span className="border-b border-gold/50 text-gold font-mono text-xs px-2 py-0.5">
-                  {placements[i] ?? "—"}
-                </span>
-              )}
+        <div className="text-cream text-sm leading-loose">
+          {lines.map((line, li) => (
+            <React.Fragment key={li}>
+              {li > 0 && <br />}
+              {line.map((item, ii) => (
+                <React.Fragment key={ii}>
+                  {item.text && <RichText text={item.text} onCode={onCode} />}
+                  {item.gapAfter && (
+                    <span className="inline-flex items-center border-b border-gold/50 text-gold font-mono text-xs px-1.5 py-0.5 mx-0.5 align-baseline">
+                      {placements[gapIndex(li, ii)] ?? "—"}
+                    </span>
+                  )}
+                </React.Fragment>
+              ))}
             </React.Fragment>
           ))}
         </div>
@@ -169,27 +203,35 @@ export default function PromptBlock({
       <p className="text-muted text-sm italic mb-4"><RichText text={prompt.question} onCode={onCode} /></p>
 
       {/* Template with gaps */}
-      <div className="flex flex-wrap items-baseline gap-x-1 gap-y-2 mb-5 text-cream leading-relaxed">
-        {segments.map((seg, i) => (
-          <React.Fragment key={i}>
-            <span><RichText text={seg} onCode={onCode} /></span>
-            {i < gapCount && (
-              <button
-                onClick={() => onGapClick(prompt.id, i, placements[i] ?? null)}
-                className={`
-                  inline-flex items-center justify-center min-w-[5rem] px-2 py-0.5
-                  border-b-2 text-xs font-mono tracking-wide transition-all
-                  ${placements[i]
-                    ? "border-gold text-gold bg-gold/10"
-                    : selectedWord
-                    ? "border-gold/60 text-muted/60 hover:border-gold animate-pulse"
-                    : "border-gold/30 text-muted/40"
-                  }
-                `}
-              >
-                {placements[i] ?? (selectedWord ? "place here" : "·····")}
-              </button>
-            )}
+      <div className="mb-5 text-cream leading-loose">
+        {lines.map((line, li) => (
+          <React.Fragment key={li}>
+            {li > 0 && <br />}
+            {line.map((item, ii) => (
+              <React.Fragment key={ii}>
+                {item.text && <RichText text={item.text} onCode={onCode} />}
+                {item.gapAfter && (() => {
+                  const gi = gapIndex(li, ii);
+                  return (
+                    <button
+                      onClick={() => onGapClick(prompt.id, gi, placements[gi] ?? null)}
+                      className={`
+                        inline-flex items-center justify-center min-w-[5rem] px-1.5 py-0.5 mx-0.5
+                        border-b-2 text-xs font-mono tracking-wide transition-all align-baseline
+                        ${placements[gi]
+                          ? "border-gold text-gold bg-gold/10"
+                          : selectedWord
+                          ? "border-gold/60 text-muted/60 hover:border-gold animate-pulse"
+                          : "border-gold/30 text-muted/40"
+                        }
+                      `}
+                    >
+                      {placements[gi] ?? (selectedWord ? "place here" : "·····")}
+                    </button>
+                  );
+                })()}
+              </React.Fragment>
+            ))}
           </React.Fragment>
         ))}
       </div>
