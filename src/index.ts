@@ -135,20 +135,25 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
   // Grant flags/words and remove flags/words — only on first visit
   const alreadyClaimed = await hasClaimedPage(player.id, page.id);
   let soulInvolved = false;
+  const grantedWords: string[] = [];
+  const grantedFlags: string[] = [];
 
   if (!alreadyClaimed) {
     if (page.page_type !== "coin_flip" && page.page_type !== "slot_machine" && page.page_type !== "ar") {
       if (page.grants_flags && page.grants_flags.length > 0) {
         await grantPlayerFlags(player.id, page.grants_flags);
+        grantedFlags.push(...page.grants_flags);
       }
       if (page.grants_words && page.grants_words.length > 0) {
         const affected = await grantPlayerWords(player.id, page.grants_words);
         if (affected.length > 0) soulInvolved = true;
+        grantedWords.push(...page.grants_words);
       }
       if (page.grants_soul) {
         const soulWord = `${player.name}'S SOUL`;
         const affected = await grantPlayerWords(player.id, [soulWord]);
         if (affected.length > 0) soulInvolved = true;
+        grantedWords.push(soulWord);
       }
     }
     const effectiveRemoves = autoFlag
@@ -170,10 +175,8 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
   }
 
   const { visible_to_roles, required_flags, excluded_by_flags, removes_flags, removes_words, scan_code, grants_soul, ...pageData } = page;
-  if (alreadyClaimed) {
-    pageData.grants_words = null;
-    pageData.grants_flags = null;
-  }
+  pageData.grants_words = grantedWords.length > 0 ? grantedWords : null;
+  pageData.grants_flags = grantedFlags.length > 0 ? grantedFlags : null;
   return json(pageData);
 }
 
