@@ -237,6 +237,15 @@ export async function initializeDatabase() {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS player_page_claims (
+      player_id INT REFERENCES players(id) ON DELETE CASCADE,
+      page_id INT REFERENCES pages(id) ON DELETE CASCADE,
+      claimed_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (player_id, page_id)
+    )
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS trades (
       id SERIAL PRIMARY KEY,
       initiator_id INT REFERENCES players(id) ON DELETE CASCADE,
@@ -687,10 +696,20 @@ export async function getPlayerWordsWithIds(playerId: number): Promise<PlayerWor
   `;
 }
 
+export async function hasClaimedPage(playerId: number, pageId: number): Promise<boolean> {
+  const rows = await sql`SELECT 1 FROM player_page_claims WHERE player_id = ${playerId} AND page_id = ${pageId}`;
+  return rows.length > 0;
+}
+
+export async function claimPage(playerId: number, pageId: number): Promise<void> {
+  await sql`INSERT INTO player_page_claims (player_id, page_id) VALUES (${playerId}, ${pageId}) ON CONFLICT DO NOTHING`;
+}
+
 export async function resetPlayerProgress(playerId: number): Promise<void> {
   await sql`DELETE FROM player_flags WHERE player_id = ${playerId}`;
   await sql`DELETE FROM player_words WHERE player_id = ${playerId}`;
   await sql`DELETE FROM player_prompt_completions WHERE player_id = ${playerId}`;
+  await sql`DELETE FROM player_page_claims WHERE player_id = ${playerId}`;
 }
 
 const SOUL_SUFFIX = "'S SOUL";

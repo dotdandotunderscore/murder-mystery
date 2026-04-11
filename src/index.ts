@@ -32,6 +32,8 @@ import {
   removePlayerFlags,
   removePlayerWordsByText,
   resetPlayerProgress,
+  hasClaimedPage,
+  claimPage,
   getPagePrompts,
   getAllPrompts,
   createPrompt,
@@ -130,37 +132,41 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
     }
   }
 
-  // Grant flags and words — skipped for mini-game/AR pages (claimed separately on win/confirm)
+  // Grant flags/words and remove flags/words — only on first visit
+  const alreadyClaimed = await hasClaimedPage(player.id, page.id);
   let soulInvolved = false;
-  if (page.page_type !== "coin_flip" && page.page_type !== "slot_machine" && page.page_type !== "ar") {
-    if (page.grants_flags && page.grants_flags.length > 0) {
-      await grantPlayerFlags(player.id, page.grants_flags);
-    }
-    if (page.grants_words && page.grants_words.length > 0) {
-      const affected = await grantPlayerWords(player.id, page.grants_words);
-      if (affected.length > 0) soulInvolved = true;
-    }
-    if (page.grants_soul) {
-      const soulWord = `${player.name}'S SOUL`;
-      const affected = await grantPlayerWords(player.id, [soulWord]);
-      if (affected.length > 0) soulInvolved = true;
-    }
-  }
-  // Remove flags and words
-  const effectiveRemoves = autoFlag
-    ? [...(page.removes_flags ?? []), autoFlag]
-    : (page.removes_flags ?? []);
-  if (effectiveRemoves.length > 0) {
-    await removePlayerFlags(player.id, effectiveRemoves);
-  }
-  if (page.page_type !== "coin_flip" && page.page_type !== "slot_machine" && page.page_type !== "ar" && page.removes_words && page.removes_words.length > 0) {
-    await removePlayerWordsByText(player.id, page.removes_words);
-  }
 
-  if (soulInvolved) {
-    broadcastPlayerUpdated();
-  } else {
-    pushToPlayer(player.id, { type: "player_updated" });
+  if (!alreadyClaimed) {
+    if (page.page_type !== "coin_flip" && page.page_type !== "slot_machine" && page.page_type !== "ar") {
+      if (page.grants_flags && page.grants_flags.length > 0) {
+        await grantPlayerFlags(player.id, page.grants_flags);
+      }
+      if (page.grants_words && page.grants_words.length > 0) {
+        const affected = await grantPlayerWords(player.id, page.grants_words);
+        if (affected.length > 0) soulInvolved = true;
+      }
+      if (page.grants_soul) {
+        const soulWord = `${player.name}'S SOUL`;
+        const affected = await grantPlayerWords(player.id, [soulWord]);
+        if (affected.length > 0) soulInvolved = true;
+      }
+    }
+    const effectiveRemoves = autoFlag
+      ? [...(page.removes_flags ?? []), autoFlag]
+      : (page.removes_flags ?? []);
+    if (effectiveRemoves.length > 0) {
+      await removePlayerFlags(player.id, effectiveRemoves);
+    }
+    if (page.page_type !== "coin_flip" && page.page_type !== "slot_machine" && page.page_type !== "ar" && page.removes_words && page.removes_words.length > 0) {
+      await removePlayerWordsByText(player.id, page.removes_words);
+    }
+    await claimPage(player.id, page.id);
+
+    if (soulInvolved) {
+      broadcastPlayerUpdated();
+    } else {
+      pushToPlayer(player.id, { type: "player_updated" });
+    }
   }
 
   const { visible_to_roles, required_flags, excluded_by_flags, removes_flags, removes_words, scan_code, grants_soul, ...pageData } = page;
@@ -255,6 +261,9 @@ server = Bun.serve({
         const page = pages.find((p) => p.id === pageId);
         if (!page) return json({ error: "Not found" }, 404);
 
+        const alreadyClaimed = await hasClaimedPage(player.id, page.id);
+        if (alreadyClaimed) return json({ ok: true });
+
         let soulInvolved = false;
         if (page.grants_flags && page.grants_flags.length > 0) {
           await grantPlayerFlags(player.id, page.grants_flags);
@@ -274,6 +283,7 @@ server = Bun.serve({
         if (page.removes_words && page.removes_words.length > 0) {
           await removePlayerWordsByText(player.id, page.removes_words);
         }
+        await claimPage(player.id, page.id);
 
         if (soulInvolved) {
           broadcastPlayerUpdated();
