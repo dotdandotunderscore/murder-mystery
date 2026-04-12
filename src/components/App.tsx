@@ -7,6 +7,7 @@ import HomePage from "./pages/HomePage";
 import PageView from "./pages/PageView";
 import TradePanel from "./TradePanel";
 import TradeOfferModal from "./TradeOfferModal";
+import DirtSendOverlay from "./DirtSendOverlay";
 import { toast } from "sonner";
 import RichText from "./RichText";
 
@@ -19,6 +20,7 @@ interface ClueResult {
   grants_words: string[] | null;
   highlight_words: string[] | null;
   game_config: Record<string, unknown> | null;
+  pending_dirt?: string[];
 }
 
 function AppInner() {
@@ -30,6 +32,7 @@ function AppInner() {
   const [error, setError] = useState<string | null>(null);
   const [hints, setHints] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingDirt, setPendingDirt] = useState<string[]>([]);
 
   // --- History API integration ---
   // When true, the current navigation was triggered by popstate (back/forward),
@@ -132,6 +135,7 @@ function AppInner() {
         setClue(data);
         setCurrentPage("clue");
         pushView("clue", codeInput.trim().toLowerCase());
+        if (data.pending_dirt?.length) setPendingDirt(data.pending_dirt);
       } else {
         setError(data.error ?? "Invalid code");
         setHints(data.hints ?? []);
@@ -159,6 +163,7 @@ function AppInner() {
         setCodeInput("");
         pushView("clue", phrase.trim().toLowerCase());
         window.scrollTo(0, 0);
+        if (data.pending_dirt?.length) setPendingDirt(data.pending_dirt);
       } else {
         const hints: string[] = data.hints ?? [];
         const id = toast.error(data.error ?? "Invalid code", {
@@ -195,6 +200,7 @@ function AppInner() {
         setCurrentPage("clue");
         setCodeInput("");
         pushView("clue", data.code_phrase ?? value.trim().toLowerCase());
+        if (data.pending_dirt?.length) setPendingDirt(data.pending_dirt);
         return true;
       } else {
         const hints: string[] = data.hints ?? [];
@@ -229,7 +235,7 @@ function AppInner() {
     if (currentPage === "admin" && player.is_admin) return <AdminPage />;
 
     if (currentPage === "clue" && clue) {
-      return <PageView clue={clue} onBack={handleBack} onScan={handleScan} onCode={handleCode} />;
+      return <PageView clue={clue} onBack={handleBack} onScan={handleScan} onCode={handleCode} onPendingDirt={setPendingDirt} />;
     }
 
     return <HomePage />;
@@ -333,6 +339,12 @@ function AppInner() {
 
       <TradePanel />
       <TradeOfferModal />
+      {pendingDirt.length > 0 && (
+        <DirtSendOverlay
+          pendingDirt={pendingDirt}
+          onComplete={() => setPendingDirt([])}
+        />
+      )}
     </div>
   );
 }

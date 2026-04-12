@@ -79,6 +79,7 @@ export interface Page {
   removes_flags: string[] | null;
   removes_words: string[] | null;
   grants_soul: boolean;
+  grants_dirt: number;
   game_config: Record<string, unknown> | null;
   scan_code: string | null;
   sort_order: number;
@@ -114,8 +115,17 @@ export interface Prompt {
   wrong_answer_hints: Record<string, string> | null;
   generic_wrong_text: string | null;
   allow_any_order: boolean;
+  grants_dirt: number;
   sort_order: number;
   created_at: Date;
+}
+
+export interface PlayerDirt {
+  id: number;
+  player_id: number;
+  rumour: string;
+  sent_by: number | null;
+  granted_at: Date;
 }
 
 export interface PromptWithCompletion extends Prompt {
@@ -265,6 +275,28 @@ export async function initializeDatabase() {
       sort_order INT DEFAULT 0
     )
   `;
+
+  // --- Dirt mechanic tables ---
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS dirt_pool (
+      id SERIAL PRIMARY KEY,
+      rumour TEXT UNIQUE NOT NULL
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS player_dirt (
+      id SERIAL PRIMARY KEY,
+      player_id INT REFERENCES players(id) ON DELETE CASCADE,
+      rumour TEXT NOT NULL,
+      sent_by INT REFERENCES players(id) ON DELETE SET NULL,
+      granted_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+
+  await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS grants_dirt INT DEFAULT 0`;
+  await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS grants_dirt INT DEFAULT 0`;
 
   // Seed initial admin if none exists
   const adminCount = await sql`SELECT COUNT(*) as count FROM players WHERE is_admin = true`;
@@ -464,6 +496,7 @@ export async function createPage(data: {
   removes_flags?: string[] | null;
   removes_words?: string[] | null;
   grants_soul?: boolean;
+  grants_dirt?: number;
   game_config?: Record<string, unknown> | null;
   sort_order?: number;
   folder_id?: number | null;
@@ -482,7 +515,7 @@ export async function createPage(data: {
       visible_to_roles,
       required_flags, required_flags_hints, excluded_by_flags,
       grants_flags, grants_words,
-      removes_flags, removes_words, grants_soul, game_config, scan_code, sort_order, folder_id
+      removes_flags, removes_words, grants_soul, grants_dirt, game_config, scan_code, sort_order, folder_id
     )
     VALUES (
       ${normalizeCodePhrase(data.code_phrase)},
@@ -498,6 +531,7 @@ export async function createPage(data: {
       ${pgTextArray(normalizeLower(data.removes_flags))},
       ${pgTextArray(normalizeUpper(data.removes_words))},
       ${data.grants_soul ?? false},
+      ${data.grants_dirt ?? 0},
       ${data.game_config ? JSON.stringify(data.game_config) : null},
       ${scanCode},
       ${sortOrder},
@@ -520,6 +554,7 @@ export async function updatePage(
     required_flags_hints?: string[] | null;
     excluded_by_flags?: string[] | null;
     grants_soul?: boolean;
+    grants_dirt?: number;
     grants_flags?: string[] | null;
     grants_words?: string[] | null;
     removes_flags?: string[] | null;
@@ -550,6 +585,7 @@ export async function updatePage(
       removes_flags = ${pgTextArray(normalizeLower(data.removes_flags))},
       removes_words = ${pgTextArray(normalizeUpper(data.removes_words))},
       grants_soul = ${data.grants_soul ?? false},
+      grants_dirt = ${data.grants_dirt ?? 0},
       game_config = ${data.game_config ? JSON.stringify(data.game_config) : null},
       scan_code = ${scanCodeExpr},
       sort_order = COALESCE(${data.sort_order !== undefined ? data.sort_order : null}, pages.sort_order),
@@ -698,6 +734,8 @@ export async function resetPlayerProgress(playerId: number): Promise<void> {
   await sql`DELETE FROM player_words WHERE player_id = ${playerId}`;
   await sql`DELETE FROM player_prompt_completions WHERE player_id = ${playerId}`;
   await sql`DELETE FROM player_page_claims WHERE player_id = ${playerId}`;
+  await sql`DELETE FROM player_dirt WHERE player_id = ${playerId}`;
+  await sql`DELETE FROM player_dirt WHERE sent_by = ${playerId}`;
 }
 
 const SOUL_SUFFIX = "'S SOUL";
@@ -809,10 +847,11 @@ export async function createPrompt(data: {
   wrong_answer_hints?: Record<string, string> | null;
   generic_wrong_text?: string | null;
   allow_any_order?: boolean;
+  grants_dirt?: number;
   sort_order?: number;
 }): Promise<Prompt> {
   const [prompt] = await sql`
-    INSERT INTO prompts (page_id, question, template, answer, grants_flags, grants_words, removes_flags, removes_words, success_text, wrong_answer_hints, generic_wrong_text, allow_any_order, sort_order)
+    INSERT INTO prompts (page_id, question, template, answer, grants_flags, grants_words, removes_flags, removes_words, success_text, wrong_answer_hints, generic_wrong_text, allow_any_order, grants_dirt, sort_order)
     VALUES (
       ${data.page_id},
       ${data.question},
@@ -826,6 +865,7 @@ export async function createPrompt(data: {
       ${normalizeWrongAnswerHints(data.wrong_answer_hints)},
       ${data.generic_wrong_text ?? null},
       ${data.allow_any_order ?? false},
+      ${data.grants_dirt ?? 0},
       ${data.sort_order ?? 0}
     )
     RETURNING *
@@ -848,6 +888,7 @@ export async function updatePrompt(
     wrong_answer_hints?: Record<string, string> | null;
     generic_wrong_text?: string | null;
     allow_any_order?: boolean;
+    grants_dirt?: number;
     sort_order?: number;
   }
 ): Promise<Prompt | null> {
@@ -865,6 +906,7 @@ export async function updatePrompt(
       wrong_answer_hints = ${normalizeWrongAnswerHints(data.wrong_answer_hints)},
       generic_wrong_text = ${data.generic_wrong_text ?? null},
       allow_any_order = ${data.allow_any_order ?? false},
+      grants_dirt = ${data.grants_dirt ?? 0},
       sort_order = ${data.sort_order ?? 0}
     WHERE id = ${id}
     RETURNING *
@@ -1017,7 +1059,7 @@ export async function submitPromptAnswer(
   promptId: number,
   playerId: number,
   words: string[]
-): Promise<{ correct: boolean; grants_flags?: string[]; grants_words?: string[]; success_text?: string; hints?: string[]; affectedPlayerIds?: number[] }> {
+): Promise<{ correct: boolean; grants_flags?: string[]; grants_words?: string[]; success_text?: string; hints?: string[]; affectedPlayerIds?: number[]; grants_dirt?: number }> {
   const prompt = await getPromptById(promptId);
   if (!prompt) return { correct: false };
 
@@ -1095,5 +1137,65 @@ export async function submitPromptAnswer(
     grants_words: prompt.grants_words ?? undefined,
     success_text: prompt.success_text ?? undefined,
     affectedPlayerIds: affectedPlayerIds.length > 0 ? affectedPlayerIds : undefined,
+    grants_dirt: prompt.grants_dirt > 0 ? prompt.grants_dirt : undefined,
   };
+}
+
+// --- Dirt mechanic functions ---
+
+export async function seedDirtPool(rumours: string[]): Promise<void> {
+  for (const r of rumours) {
+    await sql`INSERT INTO dirt_pool (rumour) VALUES (${r.trim().toUpperCase()}) ON CONFLICT DO NOTHING`;
+  }
+}
+
+export async function getAllDirtPool(): Promise<{ id: number; rumour: string }[]> {
+  return await sql`SELECT id, rumour FROM dirt_pool ORDER BY id`;
+}
+
+/** Pick N random rumours from the pool. Tries to avoid rumours already on any player. */
+export async function getRandomDirt(count: number): Promise<string[]> {
+  // Prefer rumours not yet in play
+  const fresh = await sql`
+    SELECT rumour FROM dirt_pool
+    WHERE rumour NOT IN (SELECT rumour FROM player_dirt)
+    ORDER BY RANDOM()
+    LIMIT ${count}
+  `;
+  if (fresh.length >= count) return fresh.map((r: any) => r.rumour as string);
+  // Fall back to any random rumour if pool is nearly exhausted
+  const fallback = await sql`
+    SELECT rumour FROM dirt_pool ORDER BY RANDOM() LIMIT ${count}
+  `;
+  return fallback.map((r: any) => r.rumour as string);
+}
+
+export async function sendDirt(
+  targetId: number,
+  rumour: string,
+  sentBy: number
+): Promise<void> {
+  await sql`
+    INSERT INTO player_dirt (player_id, rumour, sent_by)
+    VALUES (${targetId}, ${rumour.trim().toUpperCase()}, ${sentBy})
+  `;
+}
+
+export async function getPlayerDirt(playerId: number): Promise<PlayerDirt[]> {
+  return await sql`
+    SELECT * FROM player_dirt WHERE player_id = ${playerId} ORDER BY granted_at
+  `;
+}
+
+export async function getMobsterLeaderboard(): Promise<
+  { id: number; name: string; dirt_count: number }[]
+> {
+  return await sql`
+    SELECT p.id, p.name, COUNT(d.id)::int AS dirt_count
+    FROM players p
+    LEFT JOIN player_dirt d ON d.player_id = p.id
+    WHERE p.role = 'mobster' AND p.is_admin = false
+    GROUP BY p.id, p.name
+    ORDER BY dirt_count ASC, p.name ASC
+  `;
 }

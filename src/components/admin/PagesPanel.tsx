@@ -38,6 +38,7 @@ export const defaultPageForm = {
   required_flags_hints: [] as string[],
   excluded_by_flags: [] as string[],
   grants_soul: false,
+  grants_dirt: 0,
   grants_flags: [] as string[],
   grants_words: [] as string[],
   removes_flags: [] as string[],
@@ -140,6 +141,7 @@ export function PagesPanel() {
       required_flags_hints: c.required_flags_hints ?? [],
       excluded_by_flags: c.excluded_by_flags ?? [],
       grants_soul: c.grants_soul ?? false,
+      grants_dirt: c.grants_dirt ?? 0,
       grants_flags: c.grants_flags ?? [],
       grants_words: c.grants_words ?? [],
       removes_flags: c.removes_flags ?? [],
@@ -174,6 +176,7 @@ export function PagesPanel() {
       required_flags_hints,
       excluded_by_flags: toArr(form.excluded_by_flags),
       grants_soul: form.grants_soul,
+      grants_dirt: form.grants_dirt,
       grants_flags: toArr(form.grants_flags),
       grants_words: toArr(form.grants_words),
       removes_flags: toArr(form.removes_flags),
@@ -1029,6 +1032,7 @@ export function PagesPanel() {
               <option value="coin_flip">Coin Flip</option>
               <option value="slot_machine">Slot Machine</option>
               <option value="ar">AR</option>
+              <option value="leaderboard">Leaderboard</option>
             </select>
           </Field>
           {form.page_type === "ar" && (
@@ -1152,6 +1156,15 @@ export function PagesPanel() {
             <Toggle
               checked={form.grants_soul}
               onChange={(v) => setF("grants_soul", v)}
+            />
+          </Field>
+          <Field label="Grants Dirt" hint="Number of random dirt rumours to grant (mobster only)">
+            <input
+              type="number"
+              min={0}
+              className={inputCls}
+              value={form.grants_dirt}
+              onChange={(e) => setF("grants_dirt", parseInt(e.target.value) || 0)}
             />
           </Field>
           <Field label="Removes Flags" hint="Flags stripped from the player when unlocked">

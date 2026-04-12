@@ -20,6 +20,7 @@ interface PromptBlockProps {
   placements: (string | null)[];
   onCorrect?: () => void;
   onCode?: (phrase: string) => void;
+  onPendingDirt?: (dirt: string[]) => void;
 }
 
 // Splits a template string on "_____" (5 underscores) into text segments.
@@ -53,6 +54,7 @@ export default function PromptBlock({
   placements,
   onCorrect,
   onCode,
+  onPendingDirt,
 }: PromptBlockProps) {
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(prompt.completed);
@@ -103,6 +105,7 @@ export default function PromptBlock({
         setCompleted(true);
         const hasReward = data.grants_flags?.length || data.grants_words?.length || data.success_text;
         if (hasReward) setReward({ flags: data.grants_flags, words: data.grants_words, successText: data.success_text });
+        if (data.pending_dirt?.length && onPendingDirt) onPendingDirt(data.pending_dirt);
         onCorrect?.();
       } else {
         setWrong(true);

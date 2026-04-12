@@ -18,6 +18,7 @@ export const defaultPromptForm = {
   wrong_answer_hints: [] as { clue: string; hint: string }[],
   generic_wrong_text: "",
   allow_any_order: false,
+  grants_dirt: 0,
   sort_order: 0,
 };
 
@@ -53,6 +54,7 @@ export function PromptModal({ open, onClose, editing, presetPageId, pages, sugge
         wrong_answer_hints: wah,
         generic_wrong_text: editing.generic_wrong_text ?? "",
         allow_any_order: editing.allow_any_order ?? false,
+        grants_dirt: editing.grants_dirt ?? 0,
         sort_order: editing.sort_order,
       });
     } else {
@@ -84,6 +86,7 @@ export function PromptModal({ open, onClose, editing, presetPageId, pages, sugge
       wrong_answer_hints,
       generic_wrong_text: form.generic_wrong_text.trim() || null,
       allow_any_order: form.allow_any_order,
+      grants_dirt: form.grants_dirt,
       sort_order: form.sort_order,
     };
     const res = editing
@@ -148,6 +151,15 @@ export function PromptModal({ open, onClose, editing, presetPageId, pages, sugge
             onChange={(v) => set("allow_any_order", v)}
           />
         </div>
+        <Field label="Grants Dirt" hint="Number of random dirt rumours on correct answer (mobster only)">
+          <input
+            type="number"
+            min={0}
+            className={inputCls}
+            value={form.grants_dirt}
+            onChange={(e) => set("grants_dirt", parseInt(e.target.value) || 0)}
+          />
+        </Field>
         <Field label="Wrong Answer Hints" hint="Show a hint when a specific clue is used incorrectly">
           <WrongAnswerHintsEditor
             rows={form.wrong_answer_hints as { clue: string; hint: string }[]}

@@ -18,9 +18,10 @@ interface ARScreenProps {
   gameConfig: Record<string, unknown> | null;
   grantsFlags: string[] | null;
   grantsWords: string[] | null;
+  onPendingDirt?: (dirt: string[]) => void;
 }
 
-export default function ARScreen({ pageId, gameConfig, grantsFlags, grantsWords }: ARScreenProps) {
+export default function ARScreen({ pageId, gameConfig, grantsFlags, grantsWords, onPendingDirt }: ARScreenProps) {
   const config = gameConfig ?? {};
   const mindFileUrl = (config.mind_file_url as string) || "/targets/default.mind";
   const holdDuration = (config.hold_duration as number) || 0;
@@ -75,9 +76,11 @@ export default function ARScreen({ pageId, gameConfig, grantsFlags, grantsWords 
 
   const handleConfirm = async () => {
     setWon(true);
-    await fetch(`/api/pages/${pageId}/claim`, { method: "POST" });
+    const res = await fetch(`/api/pages/${pageId}/claim`, { method: "POST" });
+    const data = await res.json().catch(() => ({}));
     refreshInventory();
     refreshFlags();
+    if (data.pending_dirt?.length && onPendingDirt) onPendingDirt(data.pending_dirt);
   };
 
   useEffect(() => {

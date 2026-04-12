@@ -24,6 +24,7 @@ interface SlotMachineGameProps {
   grantsFlags: string[] | null;
   grantsWords: string[] | null;
   jackpotChance: number; // 0–100 percentage
+  onPendingDirt?: (dirt: string[]) => void;
 }
 
 // Each reel shows [above, middle, below]
@@ -34,6 +35,7 @@ export default function SlotMachineGame({
   grantsFlags,
   grantsWords,
   jackpotChance,
+  onPendingDirt,
 }: SlotMachineGameProps) {
   const { refreshInventory, refreshFlags } = useTradeContext();
   const [won, setWon] = useState(false);
@@ -127,10 +129,13 @@ export default function SlotMachineGame({
           if (isJackpot) {
             setTimeout(() => playSlotJackpot(ctx), 100);
             setWon(true);
-            fetch(`/api/pages/${pageId}/claim`, { method: "POST" }).then(() => {
-              refreshInventory();
-              refreshFlags();
-            });
+            fetch(`/api/pages/${pageId}/claim`, { method: "POST" })
+              .then((r) => r.json())
+              .then((data) => {
+                refreshInventory();
+                refreshFlags();
+                if (data.pending_dirt?.length && onPendingDirt) onPendingDirt(data.pending_dirt);
+              });
           } else {
             setMissed(true);
           }

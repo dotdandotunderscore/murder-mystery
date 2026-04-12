@@ -3,6 +3,37 @@ import { useTradeContext, type Trade } from "../context/TradeContext";
 import { usePlayer } from "../context/PlayerContext";
 import { toast } from "sonner";
 
+function RumoursSection() {
+  const { player } = usePlayer();
+  const [rumours, setRumours] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!player || player.role !== "mobster") return;
+    fetch("/api/dirt/mine")
+      .then((r) => r.json())
+      .then((data) => setRumours(data.map((d: { rumour: string }) => d.rumour)))
+      .catch(() => {});
+  }, [player?.id, player?.role]);
+
+  if (rumours.length === 0) return null;
+
+  return (
+    <div className="border-b border-gold/20 px-6 py-4">
+      <p className="text-red-400 text-xs tracking-[0.35em] uppercase mb-2">Rumours</p>
+      <div className="flex flex-wrap gap-1.5">
+        {rumours.map((r, i) => (
+          <span
+            key={i}
+            className="border border-red-400/30 text-red-300 text-xs px-2 py-0.5 tracking-wide italic"
+          >
+            {r}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function InventorySummary() {
   const { inventory, flags, setPanelOpen, setOfferWord } = useTradeContext();
 
@@ -290,6 +321,7 @@ export default function TradePanel() {
         </div>
 
         <InventorySummary />
+        <RumoursSection />
 
         <div className="px-6 py-5 flex-1">
           {active.length === 0 ? (

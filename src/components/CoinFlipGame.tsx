@@ -7,11 +7,12 @@ interface CoinFlipGameProps {
   grantsFlags: string[] | null;
   grantsWords: string[] | null;
   target?: number;
+  onPendingDirt?: (dirt: string[]) => void;
 }
 
 type Face = "heads" | "tails";
 
-export default function CoinFlipGame({ pageId, grantsFlags, grantsWords, target = 5 }: CoinFlipGameProps) {
+export default function CoinFlipGame({ pageId, grantsFlags, grantsWords, target = 5, onPendingDirt }: CoinFlipGameProps) {
   const REQUIRED = target;
   const { refreshInventory, refreshFlags } = useTradeContext();
   const [streak, setStreak] = useState(0);
@@ -55,10 +56,13 @@ export default function CoinFlipGame({ pageId, grantsFlags, grantsWords, target 
         if (newStreak >= REQUIRED) {
           setWon(true);
           setTimeout(() => playFanfare(ctx), 150);
-          fetch(`/api/pages/${pageId}/claim`, { method: "POST" }).then(() => {
-            refreshInventory();
-            refreshFlags();
-          });
+          fetch(`/api/pages/${pageId}/claim`, { method: "POST" })
+            .then((r) => r.json())
+            .then((data) => {
+              refreshInventory();
+              refreshFlags();
+              if (data.pending_dirt?.length && onPendingDirt) onPendingDirt(data.pending_dirt);
+            });
         } else {
           playStreakDing(ctx, newStreak, REQUIRED);
         }

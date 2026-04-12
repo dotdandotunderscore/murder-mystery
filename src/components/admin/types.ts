@@ -31,6 +31,7 @@ export interface Page {
   removes_flags: string[] | null;
   removes_words: string[] | null;
   grants_soul: boolean;
+  grants_dirt: number;
   game_config: Record<string, unknown> | null;
   scan_code: string | null;
   sort_order: number;
@@ -51,6 +52,7 @@ export interface Prompt {
   wrong_answer_hints: Record<string, string> | null;
   generic_wrong_text: string | null;
   allow_any_order: boolean;
+  grants_dirt: number;
   sort_order: number;
 }
 

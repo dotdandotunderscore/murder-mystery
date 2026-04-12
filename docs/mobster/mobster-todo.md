@@ -11,24 +11,20 @@ Everything that needs doing before the mobster faction is fully playable.
 
 ## Code Changes
 
-- [ ] **Dirt mechanic** (the big one)
-  - `is_dirt` column on `player_words` (or equivalent identification)
-  - Dirt pool table/config with 40+ rumour strings
-  - Random dirt granting (pages flag "grant dirt" rather than naming a specific word)
-  - `POST /api/send-dirt` endpoint (one-way, no acceptance, target must be mobster)
-  - Immediate-send UI: when dirt is granted, show leaderboard + target picker, block until sent
-  - Rumours section on player sheet (stuck dirt, visually distinct, not tradeable, not draggable)
-  - Once built, add dirt grants to these pages:
-    - `the big time` (id=117): 1 dirt
-    - `the executor` (id=118): 2 dirt
-    - `the tables` (id=119): 1 dirt
-    - `high stakes` (id=120): 1 dirt (on claim)
-    - `the house edge` (id=121): 1 dirt
-    - `lucky sevens` (id=123): 1 dirt (on claim)
-    - `hiring` prompt (page 81): 1 dirt
-    - `the hidden will` prompt (id=125): 1 dirt
-    - `consult the spirits` prompt (id=126): 1 dirt
-- [ ] **Leaderboard page type** - New `page_type: "leaderboard"` that dynamically queries dirt counts per mobster and displays rankings. Then change `the board` (id=130) from `text` to `leaderboard`.
+- [x] **Dirt mechanic** - Implemented
+  - `player_dirt` table (separate from player_words, clean separation)
+  - `dirt_pool` table seeded with 43 rumour strings
+  - `grants_dirt` column on both `pages` and `prompts` tables
+  - `POST /api/dirt/send` endpoint (one-way, validates mobster target)
+  - `GET /api/dirt/leaderboard` and `GET /api/dirt/mine` endpoints
+  - `DirtSendOverlay` component - blocking modal shown when dirt is granted, forces immediate target selection
+  - Wired into all three grant flows: page unlock, mini-game claim, prompt submit
+  - `LeaderboardView` component for the `leaderboard` page type
+  - `RumoursSection` in TradePanel showing stuck dirt on player's sheet
+  - Admin panel: `grants_dirt` field on both page and prompt editors, `leaderboard` page type option
+  - WebSocket messages: `dirt_received` and `leaderboard_updated`
+  - All mobster pages/prompts configured with their `grants_dirt` values
+- [x] **Leaderboard page type** - page 130 (the board) changed to `leaderboard`
 
 ## Coordinate with Occultist Designer
 

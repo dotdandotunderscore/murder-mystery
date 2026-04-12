@@ -5,6 +5,7 @@ import RichText from "../RichText";
 import CoinFlipGame from "../CoinFlipGame";
 import SlotMachineGame from "../SlotMachineGame";
 import ARScreen from "../ar/ARScreen";
+import LeaderboardView from "../LeaderboardView";
 import { useTradeContext } from "../../context/TradeContext";
 
 interface ClueResult {
@@ -36,6 +37,7 @@ interface PageViewProps {
   onBack: () => void;
   onScan?: (value: string) => Promise<boolean>;
   onCode?: (phrase: string) => void;
+  onPendingDirt?: (dirt: string[]) => void;
 }
 
 function parseTemplate(template: string): string[] {
@@ -43,7 +45,7 @@ function parseTemplate(template: string): string[] {
 }
 
 
-export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps) {
+export default function PageView({ clue, onBack, onScan, onCode, onPendingDirt }: PageViewProps) {
   const { inventory, refreshInventory, refreshFlags } = useTradeContext();
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
@@ -134,6 +136,7 @@ export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps
           grantsFlags={clue.grants_flags}
           grantsWords={clue.grants_words}
           target={(clue.game_config?.target as number) ?? 5}
+          onPendingDirt={onPendingDirt}
         />
       )}
 
@@ -144,6 +147,7 @@ export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps
           grantsFlags={clue.grants_flags}
           grantsWords={clue.grants_words}
           jackpotChance={(clue.game_config?.jackpot_chance as number) ?? 10}
+          onPendingDirt={onPendingDirt}
         />
       )}
 
@@ -154,7 +158,13 @@ export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps
           gameConfig={clue.game_config}
           grantsFlags={clue.grants_flags}
           grantsWords={clue.grants_words}
+          onPendingDirt={onPendingDirt}
         />
+      )}
+
+      {/* Leaderboard — dirt standings */}
+      {clue.page_type === "leaderboard" && (
+        <LeaderboardView />
       )}
 
       {/* Grants panel — shown immediately for non-game page types */}
@@ -211,6 +221,7 @@ export default function PageView({ clue, onBack, onScan, onCode }: PageViewProps
               onGapClick={handleGapClick}
               onCorrect={() => { refreshInventory(); refreshFlags(); }}
               onCode={onCode}
+              onPendingDirt={onPendingDirt}
             />
           ))}
         </div>

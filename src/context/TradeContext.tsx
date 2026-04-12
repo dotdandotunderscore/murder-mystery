@@ -99,7 +99,9 @@ export function TradeProvider({ children }: { children: React.ReactNode }) {
         const msg = JSON.parse(e.data) as
           | { type: "trade_update"; trade: Trade }
           | { type: "trade_removed"; tradeId: number }
-          | { type: "player_updated" };
+          | { type: "player_updated" }
+          | { type: "dirt_received"; rumour: string; from_name: string }
+          | { type: "leaderboard_updated" };
 
         if (msg.type === "trade_update") {
           setTrades((prev) => {
@@ -119,6 +121,10 @@ export function TradeProvider({ children }: { children: React.ReactNode }) {
         } else if (msg.type === "player_updated") {
           refreshInventory();
           refreshFlags();
+        } else if (msg.type === "dirt_received") {
+          // Dirt landed on this player — no action needed, the RumoursSection will refresh on panel open
+        } else if (msg.type === "leaderboard_updated") {
+          // Leaderboard changed — components with leaderboard views will poll or re-fetch
         }
       };
 

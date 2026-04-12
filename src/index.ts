@@ -48,6 +48,12 @@ import {
   acceptTrade,
   cancelTrade,
   normalizeCodePhrase,
+  getRandomDirt,
+  sendDirt,
+  getPlayerDirt,
+  getMobsterLeaderboard,
+  getAllDirtPool,
+  seedDirtPool,
   type Player,
 } from "../db/index";
 
@@ -65,6 +71,18 @@ function broadcastPlayerUpdated() {
   const msg = JSON.stringify({ type: "player_updated" });
   for (const ws of connections.values()) {
     if (ws.readyState === 1) ws.send(msg);
+  }
+}
+
+/** Push a message to all connected mobster-role players. */
+async function broadcastToMobsters(data: object) {
+  const allPlayers = await getAllPlayers();
+  const msg = JSON.stringify(data);
+  for (const p of allPlayers) {
+    if (p.role === "mobster") {
+      const ws = connections.get(p.id);
+      if (ws && ws.readyState === 1) ws.send(msg);
+    }
   }
 }
 
@@ -178,6 +196,13 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
     }
   }
 
+  // Dirt granting (text pages only, same as words — mini-games claim separately)
+  let pendingDirt: string[] | undefined;
+  if (!alreadyClaimed && page.grants_dirt > 0 && player.role === "mobster" &&
+      page.page_type !== "coin_flip" && page.page_type !== "slot_machine" && page.page_type !== "ar") {
+    pendingDirt = await getRandomDirt(page.grants_dirt);
+  }
+
   const { visible_to_roles, required_flags, excluded_by_flags, removes_flags, removes_words, scan_code, grants_soul, ...pageData } = page;
   // highlight_words always reflects what this page would grant (for in-content highlighting)
   const allWords = [...(page.grants_words ?? [])];
@@ -185,7 +210,7 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
   const highlightWords = [...allWords, ...(page.grants_flags ?? [])];
   pageData.grants_words = grantedWords.length > 0 ? grantedWords : null;
   pageData.grants_flags = grantedFlags.length > 0 ? grantedFlags : null;
-  return json({ ...pageData, highlight_words: highlightWords });
+  return json({ ...pageData, highlight_words: highlightWords, pending_dirt: pendingDirt });
 }
 
 let server: ReturnType<typeof Bun.serve>;
@@ -300,12 +325,18 @@ server = Bun.serve({
         }
         await claimPage(player.id, page.id);
 
+        // Dirt granting for mini-game/AR claims
+        let pendingDirt: string[] | undefined;
+        if (page.grants_dirt > 0 && player.role === "mobster") {
+          pendingDirt = await getRandomDirt(page.grants_dirt);
+        }
+
         if (soulInvolved) {
           broadcastPlayerUpdated();
         } else {
           pushToPlayer(player.id, { type: "player_updated" });
         }
-        return json({ ok: true });
+        return json({ ok: true, pending_dirt: pendingDirt });
       },
     },
 
@@ -479,7 +510,13 @@ server = Bun.serve({
             pushToPlayer(player.id, { type: "player_updated" });
           }
         }
-        return json(result);
+        // If the prompt grants dirt and answer was correct, draw random dirt
+        let pendingDirt: string[] | undefined;
+        if (result.correct && result.grants_dirt && player.role === "mobster") {
+          pendingDirt = await getRandomDirt(result.grants_dirt);
+        }
+        const { grants_dirt, affectedPlayerIds, ...clientResult } = result;
+        return json({ ...clientResult, pending_dirt: pendingDirt });
       },
     },
 
@@ -829,6 +866,70 @@ server = Bun.serve({
       const file = Bun.file(`public${url.pathname}`);
       if (await file.exists()) return new Response(file);
       return json({ error: "Not found" }, 404);
+    },
+
+    // --- Dirt mechanic ---
+
+    "/api/dirt/send": {
+      POST: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
+        if (player.role !== "mobster") return json({ error: "Only mobsters can send dirt" }, 403);
+
+        const body = (await req.json()) as { rumour: string; target_id: number };
+        if (!body.rumour || !body.target_id) return json({ error: "Bad request" }, 400);
+
+        const target = await getPlayerById(body.target_id);
+        if (!target || target.role !== "mobster") return json({ error: "Invalid target" }, 400);
+        if (target.id === player.id) return json({ error: "Cannot send dirt to yourself" }, 400);
+
+        await sendDirt(target.id, body.rumour, player.id);
+
+        // Notify target
+        pushToPlayer(target.id, {
+          type: "dirt_received",
+          rumour: body.rumour.trim().toUpperCase(),
+          from_name: player.name,
+        });
+        // Notify all mobsters that leaderboard changed
+        await broadcastToMobsters({ type: "leaderboard_updated" });
+
+        return json({ ok: true });
+      },
+    },
+
+    "/api/dirt/leaderboard": {
+      GET: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
+        const leaderboard = await getMobsterLeaderboard();
+        return json(leaderboard);
+      },
+    },
+
+    "/api/dirt/mine": {
+      GET: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
+        const dirt = await getPlayerDirt(player.id);
+        return json(dirt);
+      },
+    },
+
+    "/api/admin/dirt-pool": {
+      GET: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        return json(await getAllDirtPool());
+      },
+      POST: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
+        const body = (await req.json()) as { rumours: string[] };
+        if (!Array.isArray(body.rumours)) return json({ error: "Bad request" }, 400);
+        await seedDirtPool(body.rumours);
+        return json({ ok: true, count: body.rumours.length });
+      },
     },
 
     // --- Frontend catch-all ---
