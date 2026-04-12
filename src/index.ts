@@ -208,8 +208,11 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
   const allWords = [...(page.grants_words ?? [])];
   if (page.grants_soul) allWords.push(`${player.name.toUpperCase()}'S SOUL`);
   const highlightWords = [...allWords, ...(page.grants_flags ?? [])];
-  pageData.grants_words = grantedWords.length > 0 ? grantedWords : null;
-  pageData.grants_flags = grantedFlags.length > 0 ? grantedFlags : null;
+  // For mini-game/AR pages, keep the original grants so the component knows what to show on win.
+  // For text pages, only show what was actually granted on this visit (avoids re-showing on revisit).
+  const isMiniGame = page.page_type === "coin_flip" || page.page_type === "slot_machine" || page.page_type === "ar";
+  pageData.grants_words = isMiniGame ? (page.grants_words ?? null) : (grantedWords.length > 0 ? grantedWords : null);
+  pageData.grants_flags = isMiniGame ? (page.grants_flags ?? null) : (grantedFlags.length > 0 ? grantedFlags : null);
   return json({ ...pageData, highlight_words: highlightWords, pending_dirt: pendingDirt });
 }
 
