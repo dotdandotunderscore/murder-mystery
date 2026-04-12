@@ -7,7 +7,6 @@ import HomePage from "./pages/HomePage";
 import PageView from "./pages/PageView";
 import TradePanel from "./TradePanel";
 import TradeOfferModal from "./TradeOfferModal";
-import DirtSendOverlay from "./DirtSendOverlay";
 import { toast } from "sonner";
 import RichText from "./RichText";
 
@@ -235,7 +234,7 @@ function AppInner() {
     if (currentPage === "admin" && player.is_admin) return <AdminPage />;
 
     if (currentPage === "clue" && clue) {
-      return <PageView clue={clue} onBack={handleBack} onScan={handleScan} onCode={handleCode} onPendingDirt={setPendingDirt} />;
+      return <PageView clue={clue} onBack={handleBack} onScan={handleScan} onCode={handleCode} onPendingDirt={setPendingDirt} pendingDirt={pendingDirt} onDirtComplete={() => setPendingDirt([])} />;
     }
 
     return <HomePage />;
@@ -339,12 +338,6 @@ function AppInner() {
 
       <TradePanel />
       <TradeOfferModal />
-      {pendingDirt.length > 0 && (
-        <DirtSendOverlay
-          pendingDirt={pendingDirt}
-          onComplete={() => setPendingDirt([])}
-        />
-      )}
     </div>
   );
 }

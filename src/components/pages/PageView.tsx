@@ -6,6 +6,7 @@ import CoinFlipGame from "../CoinFlipGame";
 import SlotMachineGame from "../SlotMachineGame";
 import ARScreen from "../ar/ARScreen";
 import LeaderboardView from "../LeaderboardView";
+import DirtSendPanel from "../DirtSendOverlay";
 import { useTradeContext } from "../../context/TradeContext";
 
 interface ClueResult {
@@ -38,6 +39,8 @@ interface PageViewProps {
   onScan?: (value: string) => Promise<boolean>;
   onCode?: (phrase: string) => void;
   onPendingDirt?: (dirt: string[]) => void;
+  pendingDirt?: string[];
+  onDirtComplete?: () => void;
 }
 
 function parseTemplate(template: string): string[] {
@@ -45,7 +48,7 @@ function parseTemplate(template: string): string[] {
 }
 
 
-export default function PageView({ clue, onBack, onScan, onCode, onPendingDirt }: PageViewProps) {
+export default function PageView({ clue, onBack, onScan, onCode, onPendingDirt, pendingDirt, onDirtComplete }: PageViewProps) {
   const { inventory, refreshInventory, refreshFlags } = useTradeContext();
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
@@ -225,6 +228,11 @@ export default function PageView({ clue, onBack, onScan, onCode, onPendingDirt }
             />
           ))}
         </div>
+      )}
+
+      {/* Dirt send panel — shown inline when the player has pending dirt to fire */}
+      {pendingDirt && pendingDirt.length > 0 && onDirtComplete && (
+        <DirtSendPanel pendingDirt={pendingDirt} onComplete={onDirtComplete} />
       )}
 
       {/* Inline clue inventory — only shown when there are active prompts to fill */}
