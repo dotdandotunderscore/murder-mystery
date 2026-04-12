@@ -1082,6 +1082,16 @@ export function PagesPanel() {
                   }
                 />
               </Field>
+              <Field label="AR Text" hint="Text displayed on the 3D entity. Use \n for line breaks.">
+                <input
+                  className={inputCls}
+                  value={(form.game_config.ar_text as string) ?? ""}
+                  onChange={(e) =>
+                    setF("game_config", { ...form.game_config, ar_text: e.target.value })
+                  }
+                  placeholder="GLEAMING EYES,\nRESPOND?"
+                />
+              </Field>
             </>
           )}
           {form.page_type === "coin_flip" && (

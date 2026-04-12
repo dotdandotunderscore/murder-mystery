@@ -8,6 +8,7 @@ export interface UseARSceneOptions {
   mindFileUrl: string;
   entityOffset?: string;  // "x, y, z" — default "0, 0, 0.5"
   entityScale?: number;   // default 0.8
+  arText?: string;        // text to display on the AR entity (supports \n for line breaks)
   onTargetFound?: () => void;
   onTargetLost?: () => void;
 }
@@ -17,6 +18,7 @@ export function useARScene({
   mindFileUrl,
   entityOffset = "0, 0, 0.5",
   entityScale = 0.8,
+  arText = "GLEAMING EYES,\nRESPOND?",
   onTargetFound,
   onTargetLost,
 }: UseARSceneOptions) {
@@ -65,7 +67,7 @@ export function useARScene({
         const { renderer, scene, camera } = mindarThree;
         const anchor = mindarThree.addAnchor(0);
 
-        const sigil = buildSigilEntity(entityOffset, entityScale);
+        const sigil = buildSigilEntity(entityOffset, entityScale, arText);
         anchor.group.add(sigil.group);
 
         anchor.onTargetFound = () => {
@@ -175,7 +177,7 @@ function cleanup(mindarThree: any, container: HTMLElement) {
  *
  * MindAR coords: target image spans ~-0.5 to 0.5 on X/Y at z=0.
  */
-function buildSigilEntity(offsetStr: string, scale: number) {
+function buildSigilEntity(offsetStr: string, scale: number, arText: string) {
   const group = new THREE.Group();
   const parts = offsetStr.split(",").map((s) => parseFloat(s.trim()) || 0);
   group.position.set(parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0.5);
@@ -190,8 +192,17 @@ function buildSigilEntity(offsetStr: string, scale: number) {
 
   // Occult symbols above and below
   const symbols = "✧  ☽  ◉  ☽  ✧";
+  // Split text into lines and compute font size to fit
+  const textLines = arText.split("\n");
+  const lineCount = textLines.length;
+  const fontSize = lineCount <= 2 ? 104 : lineCount <= 3 ? 80 : 64;
+
   const drawText = () => {
     ctx.clearRect(0, 0, w, h);
+
+    // Vertical positions for each line, centered in the canvas
+    const lineSpacing = 1 / (lineCount + 2);
+    const lineYs = textLines.map((_, i) => h * (lineSpacing * (i + 1) + lineSpacing * 0.5));
 
     // Outer glow layers (drawn first, largest blur)
     ctx.textAlign = "center";
@@ -206,14 +217,15 @@ function buildSigilEntity(offsetStr: string, scale: number) {
       // Symbols
       ctx.font = `28px "Uncial Antiqua", serif`;
       ctx.fillStyle = "#60e0a0";
-      ctx.fillText(symbols, w / 2, h * 0.22);
-      ctx.fillText(symbols, w / 2, h * 0.78);
+      ctx.fillText(symbols, w / 2, h * 0.15);
+      ctx.fillText(symbols, w / 2, h * 0.85);
 
-      // Main text — two lines
-      ctx.font = `bold 104px "Uncial Antiqua", serif`;
+      // Main text
+      ctx.font = `bold ${fontSize}px "Uncial Antiqua", serif`;
       ctx.fillStyle = "#ccffee";
-      ctx.fillText("GLEAMING EYES,", w / 2, h * 0.38);
-      ctx.fillText("RESPOND?", w / 2, h * 0.62);
+      for (let i = 0; i < textLines.length; i++) {
+        ctx.fillText(textLines[i]!, w / 2, lineYs[i]!);
+      }
     }
 
     // Crisp foreground pass
@@ -222,13 +234,14 @@ function buildSigilEntity(offsetStr: string, scale: number) {
 
     ctx.font = `28px "Uncial Antiqua", serif`;
     ctx.fillStyle = "#80ffbb";
-    ctx.fillText(symbols, w / 2, h * 0.22);
-    ctx.fillText(symbols, w / 2, h * 0.78);
+    ctx.fillText(symbols, w / 2, h * 0.15);
+    ctx.fillText(symbols, w / 2, h * 0.85);
 
-    ctx.font = `bold 104px "Uncial Antiqua", serif`;
+    ctx.font = `bold ${fontSize}px "Uncial Antiqua", serif`;
     ctx.fillStyle = "#eeffee";
-    ctx.fillText("GLEAMING EYES,", w / 2, h * 0.38);
-    ctx.fillText("RESPOND?", w / 2, h * 0.62);
+    for (let i = 0; i < textLines.length; i++) {
+      ctx.fillText(textLines[i]!, w / 2, lineYs[i]!);
+    }
   };
   drawText();
 
