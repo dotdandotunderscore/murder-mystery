@@ -1194,7 +1194,7 @@ export async function getMobsterLeaderboard(): Promise<
     SELECT p.id, p.name, COUNT(d.id)::int AS dirt_count
     FROM players p
     LEFT JOIN player_dirt d ON d.player_id = p.id
-    WHERE p.role = 'mobster' AND p.is_admin = false
+    WHERE p.role = 'mobster'
     GROUP BY p.id, p.name
     ORDER BY dirt_count ASC, p.name ASC
   `;
