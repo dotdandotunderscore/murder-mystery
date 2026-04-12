@@ -131,6 +131,7 @@ export default function PromptBlock({
     const highlightTerms = [
       ...(prompt.grants_words ?? []),
       ...(prompt.grants_flags ?? []),
+      ...(submittedWords.filter(Boolean) as string[]),
     ];
     const hasRewardGrants =
       (reward?.words?.length ?? 0) > 0 || (reward?.flags?.length ?? 0) > 0;
