@@ -7,6 +7,7 @@ import HomePage from "./pages/HomePage";
 import PageView from "./pages/PageView";
 import TradePanel from "./TradePanel";
 import TradeOfferModal from "./TradeOfferModal";
+import type { DirtItem } from "./DirtSendOverlay";
 import { toast } from "sonner";
 import RichText from "./RichText";
 
@@ -19,7 +20,7 @@ interface ClueResult {
   grants_words: string[] | null;
   highlight_words: string[] | null;
   game_config: Record<string, unknown> | null;
-  pending_dirt?: string[];
+  pending_dirt?: DirtItem[];
 }
 
 function AppInner() {
@@ -31,7 +32,7 @@ function AppInner() {
   const [error, setError] = useState<string | null>(null);
   const [hints, setHints] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [pendingDirt, setPendingDirt] = useState<string[]>([]);
+  const [pendingDirt, setPendingDirt] = useState<DirtItem[]>([]);
 
   // --- History API integration ---
   // When true, the current navigation was triggered by popstate (back/forward),

@@ -24,7 +24,7 @@ interface SlotMachineGameProps {
   grantsFlags: string[] | null;
   grantsWords: string[] | null;
   jackpotChance: number; // 0–100 percentage
-  onPendingDirt?: (dirt: string[]) => void;
+  onPendingDirt?: (dirt: { rumour: string; flavour: string }[]) => void;
 }
 
 // Each reel shows [above, middle, below]

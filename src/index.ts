@@ -197,7 +197,7 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
   }
 
   // Dirt granting (text pages only, same as words — mini-games claim separately)
-  let pendingDirt: string[] | undefined;
+  let pendingDirt: { rumour: string; flavour: string }[] | undefined;
   if (!alreadyClaimed && page.grants_dirt > 0 && player.role === "mobster" &&
       page.page_type !== "coin_flip" && page.page_type !== "slot_machine" && page.page_type !== "ar") {
     pendingDirt = await getRandomDirt(page.grants_dirt);
@@ -329,7 +329,7 @@ server = Bun.serve({
         await claimPage(player.id, page.id);
 
         // Dirt granting for mini-game/AR claims
-        let pendingDirt: string[] | undefined;
+        let pendingDirt: { rumour: string; flavour: string }[] | undefined;
         if (page.grants_dirt > 0 && player.role === "mobster") {
           pendingDirt = await getRandomDirt(page.grants_dirt);
         }
@@ -514,7 +514,7 @@ server = Bun.serve({
           }
         }
         // If the prompt grants dirt and answer was correct, draw random dirt
-        let pendingDirt: string[] | undefined;
+        let pendingDirt: { rumour: string; flavour: string }[] | undefined;
         if (result.correct && result.grants_dirt && player.role === "mobster") {
           pendingDirt = await getRandomDirt(result.grants_dirt);
         }
@@ -928,7 +928,7 @@ server = Bun.serve({
       POST: async (req) => {
         const player = await getCurrentPlayer(req);
         if (!player?.is_admin) return json({ error: "Forbidden" }, 403);
-        const body = (await req.json()) as { rumours: string[] };
+        const body = (await req.json()) as { rumours: { rumour: string; flavour: string }[] };
         if (!Array.isArray(body.rumours)) return json({ error: "Bad request" }, 400);
         await seedDirtPool(body.rumours);
         return json({ ok: true, count: body.rumours.length });

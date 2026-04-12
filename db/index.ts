@@ -281,7 +281,8 @@ export async function initializeDatabase() {
   await sql`
     CREATE TABLE IF NOT EXISTS dirt_pool (
       id SERIAL PRIMARY KEY,
-      rumour TEXT UNIQUE NOT NULL
+      rumour TEXT UNIQUE NOT NULL,
+      flavour TEXT DEFAULT ''
     )
   `;
 
@@ -295,6 +296,7 @@ export async function initializeDatabase() {
     )
   `;
 
+  await sql`ALTER TABLE dirt_pool ADD COLUMN IF NOT EXISTS flavour TEXT DEFAULT ''`;
   await sql`ALTER TABLE pages ADD COLUMN IF NOT EXISTS grants_dirt INT DEFAULT 0`;
   await sql`ALTER TABLE prompts ADD COLUMN IF NOT EXISTS grants_dirt INT DEFAULT 0`;
 
@@ -1066,6 +1068,11 @@ export async function submitPromptAnswer(
   const normalize = (s: string) => s.trim().toUpperCase();
   let correct: boolean;
 
+  const matchesSlot = (answer: string, word: string): boolean => {
+    if (answer === "*") return word.length > 0; // wildcard: any non-empty clue
+    return answer.split("|").map((s) => s.trim().toUpperCase()).includes(word);
+  };
+
   if (prompt.allow_any_order) {
     // Each submitted word must match a different answer slot (no duplicates)
     if (prompt.answer.length !== words.length) {
@@ -1076,7 +1083,7 @@ export async function submitPromptAnswer(
         const norm = normalize(w);
         const idx = prompt.answer.findIndex((a, i) => {
           if (used.has(i)) return false;
-          return a.split("|").map((s) => s.trim().toUpperCase()).includes(norm);
+          return matchesSlot(a, norm);
         });
         if (idx === -1) return false;
         used.add(idx);
@@ -1086,10 +1093,7 @@ export async function submitPromptAnswer(
   } else {
     correct =
       prompt.answer.length === words.length &&
-      prompt.answer.every((a, i) => {
-        const alternatives = a.split("|").map((s) => s.trim().toUpperCase());
-        return alternatives.includes(normalize(words[i] ?? ""));
-      });
+      prompt.answer.every((a, i) => matchesSlot(a, normalize(words[i] ?? "")));
   }
 
   if (!correct) {
@@ -1100,8 +1104,7 @@ export async function submitPromptAnswer(
         const submitted = normalize(words[i] ?? "");
         // Skip hints for words that are correct in their position
         if (expected) {
-          const alternatives = expected.split("|").map((s) => s.trim().toUpperCase());
-          if (alternatives.includes(submitted)) continue;
+          if (matchesSlot(expected, submitted)) continue;
         }
         const hint = prompt.wrong_answer_hints[submitted];
         if (hint) hints.push(hint);
@@ -1143,31 +1146,36 @@ export async function submitPromptAnswer(
 
 // --- Dirt mechanic functions ---
 
-export async function seedDirtPool(rumours: string[]): Promise<void> {
-  for (const r of rumours) {
-    await sql`INSERT INTO dirt_pool (rumour) VALUES (${r.trim().toUpperCase()}) ON CONFLICT DO NOTHING`;
+export async function seedDirtPool(entries: { rumour: string; flavour: string }[]): Promise<void> {
+  for (const e of entries) {
+    await sql`
+      INSERT INTO dirt_pool (rumour, flavour) VALUES (${e.rumour.trim().toUpperCase()}, ${e.flavour.trim()})
+      ON CONFLICT (rumour) DO UPDATE SET flavour = ${e.flavour.trim()}
+    `;
   }
 }
 
-export async function getAllDirtPool(): Promise<{ id: number; rumour: string }[]> {
-  return await sql`SELECT id, rumour FROM dirt_pool ORDER BY id`;
+export async function getAllDirtPool(): Promise<{ id: number; rumour: string; flavour: string }[]> {
+  return await sql`SELECT id, rumour, flavour FROM dirt_pool ORDER BY id`;
 }
 
+export interface DirtDraw { rumour: string; flavour: string }
+
 /** Pick N random rumours from the pool. Tries to avoid rumours already on any player. */
-export async function getRandomDirt(count: number): Promise<string[]> {
+export async function getRandomDirt(count: number): Promise<DirtDraw[]> {
   // Prefer rumours not yet in play
   const fresh = await sql`
-    SELECT rumour FROM dirt_pool
+    SELECT rumour, flavour FROM dirt_pool
     WHERE rumour NOT IN (SELECT rumour FROM player_dirt)
     ORDER BY RANDOM()
     LIMIT ${count}
   `;
-  if (fresh.length >= count) return fresh.map((r: any) => r.rumour as string);
+  if (fresh.length >= count) return fresh.map((r: any) => ({ rumour: r.rumour, flavour: r.flavour }));
   // Fall back to any random rumour if pool is nearly exhausted
   const fallback = await sql`
-    SELECT rumour FROM dirt_pool ORDER BY RANDOM() LIMIT ${count}
+    SELECT rumour, flavour FROM dirt_pool ORDER BY RANDOM() LIMIT ${count}
   `;
-  return fallback.map((r: any) => r.rumour as string);
+  return fallback.map((r: any) => ({ rumour: r.rumour, flavour: r.flavour }));
 }
 
 export async function sendDirt(

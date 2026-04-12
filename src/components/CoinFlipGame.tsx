@@ -7,7 +7,7 @@ interface CoinFlipGameProps {
   grantsFlags: string[] | null;
   grantsWords: string[] | null;
   target?: number;
-  onPendingDirt?: (dirt: string[]) => void;
+  onPendingDirt?: (dirt: { rumour: string; flavour: string }[]) => void;
 }
 
 type Face = "heads" | "tails";

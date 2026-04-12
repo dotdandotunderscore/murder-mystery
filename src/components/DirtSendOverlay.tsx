@@ -7,10 +7,13 @@ interface LeaderboardEntry {
   dirt_count: number;
 }
 
+export interface DirtItem {
+  rumour: string;
+  flavour: string;
+}
+
 interface DirtSendPanelProps {
-  /** The rumour strings the player must fire at targets, one at a time */
-  pendingDirt: string[];
-  /** Called when all dirt has been sent */
+  pendingDirt: DirtItem[];
   onComplete: () => void;
 }
 
@@ -21,7 +24,7 @@ export default function DirtSendPanel({ pendingDirt, onComplete }: DirtSendPanel
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const currentRumour = pendingDirt[currentIndex];
+  const current = pendingDirt[currentIndex];
 
   useEffect(() => {
     fetch("/api/dirt/leaderboard")
@@ -31,13 +34,13 @@ export default function DirtSendPanel({ pendingDirt, onComplete }: DirtSendPanel
   }, [currentIndex]);
 
   const handleSend = async (targetId: number) => {
-    if (sending || !currentRumour) return;
+    if (sending || !current) return;
     setSending(true);
     try {
       const res = await fetch("/api/dirt/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rumour: currentRumour, target_id: targetId }),
+        body: JSON.stringify({ rumour: current.rumour, target_id: targetId }),
       });
       if (res.ok) {
         const nextIndex = currentIndex + 1;
@@ -56,12 +59,12 @@ export default function DirtSendPanel({ pendingDirt, onComplete }: DirtSendPanel
   return (
     <div className="border border-red-500/30 bg-surface-2 p-5 mb-6">
       {/* Header */}
-      <div className="text-center mb-4">
+      <div className="text-center mb-3">
         <p className="text-red-400 text-xs tracking-[0.35em] uppercase mb-2">
           Rumour Acquired
         </p>
         <p className="text-red-300 text-sm font-mono tracking-wide">
-          {currentRumour}
+          {current?.rumour}
         </p>
         {pendingDirt.length > 1 && (
           <p className="text-muted text-xs mt-1">
@@ -69,6 +72,13 @@ export default function DirtSendPanel({ pendingDirt, onComplete }: DirtSendPanel
           </p>
         )}
       </div>
+
+      {/* Flavour text */}
+      {current?.flavour && (
+        <p className="text-muted text-sm italic text-center mb-4 leading-relaxed">
+          {current.flavour}
+        </p>
+      )}
 
       {/* Instruction */}
       <p className="text-muted text-xs text-center mb-4">

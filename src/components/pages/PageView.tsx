@@ -6,7 +6,7 @@ import CoinFlipGame from "../CoinFlipGame";
 import SlotMachineGame from "../SlotMachineGame";
 import ARScreen from "../ar/ARScreen";
 import LeaderboardView from "../LeaderboardView";
-import DirtSendPanel from "../DirtSendOverlay";
+import DirtSendPanel, { type DirtItem } from "../DirtSendOverlay";
 import { useTradeContext } from "../../context/TradeContext";
 
 interface ClueResult {
@@ -38,8 +38,8 @@ interface PageViewProps {
   onBack: () => void;
   onScan?: (value: string) => Promise<boolean>;
   onCode?: (phrase: string) => void;
-  onPendingDirt?: (dirt: string[]) => void;
-  pendingDirt?: string[];
+  onPendingDirt?: (dirt: DirtItem[]) => void;
+  pendingDirt?: DirtItem[];
   onDirtComplete?: () => void;
 }
 

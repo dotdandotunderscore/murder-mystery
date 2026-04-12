@@ -1,0 +1,132 @@
+# Dirt Pool
+# Each entry is two lines: the rumour (UPPERCASE) then the flavour text.
+# Blank lines between entries are ignored. Lines starting with # are ignored.
+
+SKIMMING OFF THE TOP
+You overhear a dealer muttering about missing chips from the count room. The name that comes up ain't yours. Not yet.
+
+RATTED TO THE FEDS
+A whisper near the coat check. Somebody's been talking to a man in a cheap suit who ain't here to gamble.
+
+FRISKY WITH THE DON'S WIFE
+The barkeep slides you a look and nods toward the balcony. Mrs. Kay wasn't always alone up there, apparently.
+
+WATERED DOWN THE WHISKEY
+The top-shelf bottle behind the bar tastes like the bottom shelf. Somebody's been pocketing the difference.
+
+POCKETED THE COLLECTION
+A runner comes in short. The envelope's lighter than it should be. Someone between here and the drop helped themselves.
+
+DOUBLE-BOOKED THE FIGHTS
+Two fighters showed up for the same bout last Tuesday. Someone sold the same slot twice and kept both fees.
+
+SOLD OUT A FAMILY MAN
+A loyal soldier got picked up by the cops last week. Somebody tipped them off. The timing was too clean to be coincidence.
+
+COOKING THE BOOKS
+The accountant left a ledger open on the bar. The numbers don't add up, and the gap points somewhere uncomfortable.
+
+TALKING TO THE COPS
+A waitress saw someone step outside to take a call. The voice on the other end sounded official.
+
+RUNNING A SIDE GAME
+There's a card table in the back room that ain't on any schedule. Somebody's been running their own house. On the Don's floor.
+
+RIGGED THE CARD TABLE
+The dealer at table six has been winning too often. Not for the house. For himself.
+
+SHORT-CHANGED THE FAMILY
+The monthly take is light. Again. Someone along the chain has sticky fingers and a short memory.
+
+BORROWED FROM THE KITTY
+The emergency fund is missing a chunk. No record of who took it. No record of why.
+
+FAKED THE RECEIPTS
+A stack of receipts in the office don't match the deliveries. Someone's been billing for air.
+
+SNITCHED TO THE PAPERS
+A reporter from the Gazette has details they shouldn't have. Inside details. The kind you only get from inside.
+
+SKIPPED THE FUNERAL
+The Don's funeral, and somebody couldn't be bothered to show. In this family, that ain't forgetfulness. That's a statement.
+
+STIFFED THE BARKEEP
+The barkeep's been complaining. Someone ran up a tab the size of a mortgage and walked out whistling.
+
+TIPPED OFF A RIVAL
+The Delacroix crew knew about the shipment before it arrived. Somebody gave them the route and the time.
+
+LOST THE SHIPMENT
+A truck full of product never made it to the warehouse. The driver says he was jumped. Nobody believes him.
+
+POCKETED THE TIPS
+The waitstaff are talking. Their tips have been light since the new management started handling the jar.
+
+CHEATED AT POKER
+The house game last night had a winner who shouldn't have won. The cards tell a story, if you know how to read them.
+
+LIED ABOUT THE NUMBERS
+The quarterly report looks healthy. Too healthy. Somebody polished the numbers until they shined.
+
+KEPT A SECOND SET OF BOOKS
+A ledger turned up behind a filing cabinet. Different numbers. Different story. Same handwriting.
+
+MISSED THE DROP
+The pickup was at midnight. Nobody showed. The package sat in the rain until a stranger found it.
+
+FORGOT THE PASSWORD
+The safe in the back office got locked for three days because somebody forgot the combination. The locksmith charged double.
+
+SOLD FAKE CIGARS
+The Don's private cigar stock has been tasting funny. Turns out the real ones got sold out the back door.
+
+WATERED DOWN THE GIN
+The gin tastes thin. The bottles are full but the proof is wrong. Somebody's stretching the supply.
+
+BRIBED THE WRONG COP
+A payoff went to a badge who wasn't on the take. Now he's asking questions, and the answers ain't cheap.
+
+OWES MONEY TO EVERYONE
+Somebody in the family has been borrowing from every pocket in the building. The debts are adding up and the patience is running out.
+
+WORE A WIRE
+A small microphone turned up in the men's room. Somebody brought it in. Somebody was recording.
+
+DUCKED OUT OF A FIGHT
+When the trouble started on the floor last week, one of ours was nowhere to be found. Showed up after with a convenient excuse.
+
+SQUEALED UNDER PRESSURE
+A low-level guy got picked up on a minor charge and sang like a canary. Someone higher up taught him the words.
+
+SKIMMED THE DOOR TAKE
+The cover charge brought in less than it should have. The doorman's new watch suggests where the difference went.
+
+SHORTED THE BOOKIE
+A bet came in heavy and the payout went out light. The bookie blamed the math. The math disagrees.
+
+PLAYED BOTH SIDES
+Someone's been having friendly drinks with the competition. Real friendly. The kind of friendly that costs.
+
+PAWNED THE SILVER
+The silverware in the VIP room is looking thin. A pawn shop on Fifth has a sudden surplus of monogrammed forks.
+
+DRANK THE STOCK
+The wine cellar is missing three cases of the good stuff. Nobody signed them out. Somebody drank them.
+
+LOST AT THEIR OWN GAME
+Someone who was supposed to be running the table ended up losing at it. House money. Not a small amount.
+
+BACKED THE WRONG HORSE
+A big bet went down on a fight that was supposed to be fixed. The fix fell through. The money didn't come back.
+
+CLIPPED THE WRONG GUY
+A problem was supposed to be handled quietly. The wrong man caught the wrong end of it. Now there's a mess and no good way to clean it.
+
+LET ONE WALK
+A debtor was supposed to be collected on. Instead they walked out the front door with a smile. Somebody let it happen.
+
+POCKETED THE HOUSE CUT
+The house always gets its share. Except last Thursday. Last Thursday, someone else got the house's share first.
+
+TALKED IN THEIR SLEEP
+A girl from the casino floor says her gentleman friend talks in his sleep. What he says would make interesting reading.

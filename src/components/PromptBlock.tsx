@@ -21,7 +21,7 @@ interface PromptBlockProps {
   placements: (string | null)[];
   onCorrect?: () => void;
   onCode?: (phrase: string) => void;
-  onPendingDirt?: (dirt: string[]) => void;
+  onPendingDirt?: (dirt: { rumour: string; flavour: string }[]) => void;
 }
 
 // Splits a template string on "_____" (5 underscores) into text segments.

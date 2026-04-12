@@ -18,7 +18,7 @@ interface ARScreenProps {
   gameConfig: Record<string, unknown> | null;
   grantsFlags: string[] | null;
   grantsWords: string[] | null;
-  onPendingDirt?: (dirt: string[]) => void;
+  onPendingDirt?: (dirt: { rumour: string; flavour: string }[]) => void;
 }
 
 export default function ARScreen({ pageId, gameConfig, grantsFlags, grantsWords, onPendingDirt }: ARScreenProps) {

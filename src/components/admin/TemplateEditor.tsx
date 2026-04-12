@@ -6,16 +6,24 @@ import { inputCls, fieldCls } from "./shared";
 // Convert stored template + answers back to the [WORD] rich format for editing
 export function toRichTemplate(template: string, answers: string[]): string {
   let i = 0;
-  return template.replace(/_____/g, () => `[${answers[i++] ?? ""}]`);
+  return template.replace(/_____/g, () => {
+    const a = answers[i++] ?? "";
+    return a === "*" ? "[_]" : `[${a}]`;
+  });
 }
 
 // Parse [WORD] rich format into the stored template + answer array.
 // Supports alternatives: [KNIFE|CANDLESTICK] → answer entry "KNIFE|CANDLESTICK"
+// Supports wildcard: [_] → answer entry "*" (any clue accepted)
 export function fromRichTemplate(rich: string): { template: string; answer: string[] } {
   const answer: string[] = [];
   const template = rich.replace(/\[([^\]]*)\]/g, (_, w) => {
-    const alts = w.split("|").map((s: string) => s.trim().toUpperCase()).filter(Boolean).join("|");
-    answer.push(alts);
+    if (w.trim() === "_") {
+      answer.push("*");
+    } else {
+      const alts = w.split("|").map((s: string) => s.trim().toUpperCase()).filter(Boolean).join("|");
+      answer.push(alts);
+    }
     return "_____";
   });
   return { template, answer };
@@ -48,7 +56,11 @@ export function TemplateEditor({
   };
 
   const gaps = [...value.matchAll(/\[([^\]]*)\]/g)]
-    .map((m) => (m[1] ?? "").split("|").map((s) => s.trim().toUpperCase()).filter(Boolean).join(" / "))
+    .map((m) => {
+      const inner = (m[1] ?? "").trim();
+      if (inner === "_") return "(any clue)";
+      return inner.split("|").map((s) => s.trim().toUpperCase()).filter(Boolean).join(" / ");
+    })
     .filter(Boolean);
 
   return (
