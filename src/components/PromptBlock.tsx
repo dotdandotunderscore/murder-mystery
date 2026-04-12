@@ -11,6 +11,7 @@ interface Prompt {
   success_text: string | null;
   sort_order: number;
   completed: boolean;
+  submitted_words?: string[] | null;
 }
 
 interface PromptBlockProps {
@@ -120,7 +121,13 @@ export default function PromptBlock({
   };
 
   if (completed) {
-    const successText = reward?.successText ?? prompt.success_text;
+    const rawSuccessText = reward?.successText ?? prompt.success_text;
+    // Replace [1], [2], etc. with the words the player submitted
+    const submittedWords = prompt.submitted_words ?? placements;
+    const successText = rawSuccessText?.replace(/\[(\d+)\]/g, (_, n) => {
+      const word = submittedWords[parseInt(n) - 1];
+      return word ?? `[${n}]`;
+    }) ?? null;
     const highlightTerms = [
       ...(prompt.grants_words ?? []),
       ...(prompt.grants_flags ?? []),
