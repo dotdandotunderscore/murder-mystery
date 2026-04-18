@@ -48,6 +48,7 @@ import {
   acceptTrade,
   cancelTrade,
   normalizeCodePhrase,
+  getPlayerVisitedPages,
   getRandomDirt,
   sendDirt,
   getPlayerDirt,
@@ -126,6 +127,11 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
   const playerFlags = await getPlayerFlags(player.id);
   const result = await getPageByCodeForPlayer(codePhrase, player.id, player.role ?? null, playerFlags);
   if (!result) return json({ error: "Unknown code, have you tried looking around?" }, 404);
+
+  // Page exists but is restricted to a different role
+  if ("role_blocked" in result) {
+    return json({ error: "This is for someone else" }, 403);
+  }
 
   // Player is visible for this page but missing required flags — show hints
   if ("blocked" in result) {
@@ -248,6 +254,17 @@ server = Bun.serve({
         const player = await getCurrentPlayer(req);
         if (!player) return json({ error: "Unauthorized" }, 401);
         return json(safePlayer(player));
+      },
+    },
+
+    // --- Page history ---
+
+    "/api/pages/history": {
+      GET: async (req) => {
+        const player = await getCurrentPlayer(req);
+        if (!player) return json({ error: "Unauthorized" }, 401);
+        const history = await getPlayerVisitedPages(player.id);
+        return json(history);
       },
     },
 

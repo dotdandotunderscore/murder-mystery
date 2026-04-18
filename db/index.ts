@@ -423,7 +423,7 @@ export async function getPageByCodeForPlayer(
   playerId: number,
   playerRole: string | null,
   playerFlags: string[]
-): Promise<{ page: Page } | { blocked: Page } | null> {
+): Promise<{ page: Page } | { blocked: Page } | { role_blocked: true } | null> {
   const rawRows = await sql`SELECT * FROM pages WHERE code_phrase = ${codePhrase}`;
   const rows = rawRows.map(parsePageRow) as Page[];
   if (rows.length === 0) return null;
@@ -480,6 +480,10 @@ export async function getPageByCodeForPlayer(
     const best = visiblePages.reduce((a, b) => (a.sort_order <= b.sort_order ? a : b));
     return { blocked: best };
   }
+
+  // All eligible pages are role-restricted to other roles — the player simply has the wrong role.
+  const roleRestricted = eligible.filter((p) => p.visible_to_roles && p.visible_to_roles.length > 0);
+  if (roleRestricted.length > 0) return { role_blocked: true as const };
 
   return null;
 }
@@ -729,6 +733,19 @@ export async function hasClaimedPage(playerId: number, pageId: number): Promise<
 
 export async function claimPage(playerId: number, pageId: number): Promise<void> {
   await sql`INSERT INTO player_page_claims (player_id, page_id) VALUES (${playerId}, ${pageId}) ON CONFLICT DO NOTHING`;
+}
+
+export async function getPlayerVisitedPages(playerId: number): Promise<{ code_phrase: string; claimed_at: Date }[]> {
+  return await sql`
+    SELECT code_phrase, claimed_at FROM (
+      SELECT DISTINCT ON (p.code_phrase) p.code_phrase, c.claimed_at
+      FROM player_page_claims c
+      JOIN pages p ON p.id = c.page_id
+      WHERE c.player_id = ${playerId} AND p.page_type != 'scan_target'
+      ORDER BY p.code_phrase, c.claimed_at DESC
+    ) sub
+    ORDER BY claimed_at DESC
+  `;
 }
 
 export async function resetPlayerProgress(playerId: number): Promise<void> {

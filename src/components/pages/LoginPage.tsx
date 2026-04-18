@@ -38,20 +38,18 @@ export default function LoginPage() {
 
         {/* Masthead */}
         <div className="text-center mb-10">
-          <p className="text-gold text-xs tracking-[0.5em] uppercase mb-6">
-            — Strictly Confidential —
-          </p>
           <h1
-            className="text-cream text-5xl leading-none mb-1"
-            style={{ fontFamily: "var(--font-family-display)" }}
+            className="text-cream text-2xl leading-none mb-1"
+            style={{ fontFamily: "var(--font-family-display)"}}
+            
           >
-            Murder
+            Welcome to the
           </h1>
           <h1
-            className="text-gold text-4xl leading-none"
-            style={{ fontFamily: "var(--font-family-display)", fontStyle: "italic" }}
+            className="text-gold text-5xl leading-none"
+            style={{ fontFamily: "var(--font-family-display)", fontStyle: "italic"  }}
           >
-            Mystery
+            Broken Drum
           </h1>
           {/* Gold rule with diamond */}
           <div className="flex items-center gap-4 mt-8">
@@ -64,19 +62,19 @@ export default function LoginPage() {
         {/* Form card */}
         <div className="border border-gold/25 bg-surface px-8 py-8">
           <p className="text-muted text-xs tracking-[0.35em] uppercase text-center mb-7">
-            Identify Yourself
+            Log in
           </p>
           <form onSubmit={handleSubmit}>
             <div className="mb-5">
               <label className="block text-gold text-xs tracking-widest uppercase mb-2">
-                Character
+                Name
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="w-full bg-ink border border-gold/30 text-cream px-4 py-3 text-base focus:outline-none focus:border-gold transition-colors"
-                placeholder="e.g. The Butler"
+                placeholder="e.g. Dan"
                 autoComplete="username"
                 autoCapitalize="words"
               />

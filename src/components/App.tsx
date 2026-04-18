@@ -306,7 +306,7 @@ function AppInner() {
             <div className="flex max-w-xs mx-auto">
               <input
                 className="flex-1 bg-surface border border-gold/30 text-cream px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors min-w-0"
-                placeholder="Enter code…"
+                placeholder="Enter code phrase…"
                 value={codeInput}
                 onChange={(e) => setCodeInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
