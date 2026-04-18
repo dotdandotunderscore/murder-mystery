@@ -195,7 +195,20 @@ function buildSigilEntity(offsetStr: string, scale: number, arText: string) {
   // Split text into lines and compute font size to fit
   const textLines = arText.split("\n");
   const lineCount = textLines.length;
-  const fontSize = lineCount <= 2 ? 104 : lineCount <= 3 ? 80 : 64;
+  // Horizontal margin accounts for the outer glow blur (~40px) so it doesn't clip.
+  const marginX = 60;
+  const maxTextWidth = w - marginX * 2;
+  // Vertical budget: symbols occupy ~0.15h top/bottom, text lives in the middle ~0.6h.
+  const maxTextHeight = h * 0.6;
+  // Start from the old line-count-based size and shrink until both width and height fit.
+  let fontSize = lineCount <= 2 ? 104 : lineCount <= 3 ? 80 : 64;
+  const measureWidest = () => {
+    ctx.font = `bold ${fontSize}px "Uncial Antiqua", serif`;
+    return Math.max(...textLines.map((line) => ctx.measureText(line).width));
+  };
+  while (fontSize > 28 && (measureWidest() > maxTextWidth || fontSize * 1.25 * lineCount > maxTextHeight)) {
+    fontSize -= 4;
+  }
 
   const drawText = () => {
     ctx.clearRect(0, 0, w, h);
