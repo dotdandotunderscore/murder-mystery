@@ -8,7 +8,7 @@ interface FormattedSegment {
 
 // First pass: extract bold/italic formatting from the full text before any splitting
 function parseFormatting(text: string): FormattedSegment[] {
-  const pattern = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*)/g;
+  const pattern = /(\*\*\*([\s\S]+?)\*\*\*|\*\*([\s\S]+?)\*\*|\*([\s\S]+?)\*)/g;
   const segments: FormattedSegment[] = [];
   let last = 0;
   let match: RegExpExecArray | null;

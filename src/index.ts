@@ -120,7 +120,7 @@ function json(data: unknown, status = 200, extraHeaders?: Record<string, string>
 }
 
 // Shared unlock logic used by both /api/pages/unlock and /api/pages/scan-unlock.
-// scanned=true means the request came via QR scan (scanned_<phrase> already granted).
+// scanned=true means the request came via QR scan — required for scan_target pages.
 async function unlockPage(player: Player, codePhrase: string, scanned: boolean): Promise<Response> {
   if (!codePhrase) return json({ error: "Unknown code, have you tried looking around?" }, 404);
 
@@ -146,15 +146,9 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
 
   const page = result.page;
 
-  // For scan_target pages, implicitly require scanned_<phrase> and remove it on success.
-  // This auto-flag is NOT checked during page selection — only here.
-  const autoFlag = page.page_type === "scan_target" ? `scanned_${codePhrase}` : null;
-
-  if (autoFlag) {
-    const playerFlagsLower = playerFlags.map((f) => f.toLowerCase());
-    if (!playerFlagsLower.includes(autoFlag.toLowerCase())) {
-      return json({ error: "You're missing a prerequisite" }, 403);
-    }
+  // scan_target pages are only reachable via QR scan.
+  if (page.page_type === "scan_target" && !scanned) {
+    return json({ error: "You're missing a prerequisite" }, 403);
   }
 
   // Grant flags/words and remove flags/words — only on first visit
@@ -181,11 +175,8 @@ async function unlockPage(player: Player, codePhrase: string, scanned: boolean):
         grantedWords.push(soulWord);
       }
     }
-    const effectiveRemoves = autoFlag
-      ? [...(page.removes_flags ?? []), autoFlag]
-      : (page.removes_flags ?? []);
-    if (effectiveRemoves.length > 0) {
-      await removePlayerFlags(player.id, effectiveRemoves);
+    if (page.removes_flags && page.removes_flags.length > 0) {
+      await removePlayerFlags(player.id, page.removes_flags);
     }
     if (page.page_type !== "coin_flip" && page.page_type !== "slot_machine" && page.page_type !== "ar" && page.removes_words && page.removes_words.length > 0) {
       await removePlayerWordsByText(player.id, page.removes_words);
@@ -294,17 +285,12 @@ server = Bun.serve({
         if (body.scan_code) {
           const page = await getPageByScanCode(body.scan_code);
           if (!page) return json({ error: "Unknown code, go find an admin" }, 404);
-
-          const codePhrase = page.code_phrase;
-          await grantPlayerFlags(player.id, [`scanned_${codePhrase}`]);
-          return unlockPage(player, codePhrase, true);
+          return unlockPage(player, page.code_phrase, true);
         }
 
         // Fallback: legacy code_phrase-based scan
         const codePhrase = normalizeCodePhrase(body.code_phrase ?? "");
         if (!codePhrase) return json({ error: "Unknown code, go find an admin" }, 404);
-
-        await grantPlayerFlags(player.id, [`scanned_${codePhrase}`]);
         return unlockPage(player, codePhrase, true);
       },
     },
